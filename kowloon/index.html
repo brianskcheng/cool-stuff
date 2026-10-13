@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>九龍城寨 Accretion</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A procedural simulation of the Kowloon Walled City growing from post-war huts to a 14-storey monolith under the Kai Tak flight path, then coming down.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500&family=Noto+Serif+TC:wght@900&family=Noto+Sans+TC:wght@900&display=swap">
+<style>
+/* Layout: a full-bleed night scene; signboard-style panels pinned to its corners, timeline along the bottom. */
+:root {
+  --ink: #0a0c0f;
+  --glass: rgba(10, 12, 15, 0.66);
+  --glass-edge: rgba(236, 230, 218, 0.12);
+  --bone: #ece6da;
+  --mute: #9c978d;
+  --neon: #ff3b4e;
+  --tube: #bff5d6;
+  --amber: #ffb547;
+  --f-zh: "Noto Serif TC", "Songti TC", "PMingLiU", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "WenQuanYi Zen Hei", serif;
+  --f-label: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--ink); color: var(--bone); font: 15px/1.45 var(--f-body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+button { font: 600 14px/1 var(--f-label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone); background: transparent; border: 1px solid var(--glass-edge); border-radius: 3px; padding: 8px 11px; cursor: pointer; transition: border-color .2s, background .2s, color .2s; }
+button:hover { border-color: rgba(236, 230, 218, 0.4); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--tube); outline-offset: 2px; }
+button[aria-pressed="true"] { border-color: var(--neon); color: #fff; background: rgba(255, 59, 78, 0.16); }
+.panel { background: var(--glass); border: 1px solid var(--glass-edge); backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2); border-radius: 4px; }
+.label { font: 500 12px/1 var(--f-label); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+
+/* title: a vertical signboard */
+#title { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 16px; display: grid; grid-template-columns: auto auto; gap: 12px; align-items: start; pointer-events: none; }
+#title .board { display: grid; gap: 5px; font: 900 38px/1 var(--f-zh); color: #ffe9ea; padding: 12px 9px; border: 2px solid var(--neon); border-radius: 3px; background: rgba(20, 4, 8, 0.55);
+  text-shadow: 0 0 6px var(--neon), 0 0 18px var(--neon), 0 0 36px rgba(255, 59, 78, .6); box-shadow: 0 0 14px rgba(255, 59, 78, .45), inset 0 0 14px rgba(255, 59, 78, .3); }
+#title .meta { display: grid; gap: 6px; padding-top: 4px; }
+#title h1 { margin: 0; font: 700 24px/1 var(--f-label); letter-spacing: 0.08em; text-transform: uppercase; text-wrap: balance; text-shadow: 0 1px 12px rgba(0,0,0,.6); }
+#title .sub { font: 500 13px/1.3 var(--f-label); letter-spacing: 0.12em; text-transform: uppercase; color: var(--tube); text-shadow: 0 0 10px rgba(191,245,214,.35); }
+#seed { font: 500 12px/1 var(--f-label); letter-spacing: .12em; color: var(--mute); text-transform: uppercase; }
+
+/* stats */
+#stats { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); right: 16px; width: 264px; padding: 14px 16px 12px; display: grid; gap: 10px; font-variant-numeric: tabular-nums; }
+#stats .when { display: flex; align-items: baseline; gap: 10px; }
+#year { font: 600 64px/0.85 var(--f-label); letter-spacing: -0.01em; }
+#month { font: 500 18px/1 var(--f-label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+#clock { margin-left: auto; font: 500 18px/1 var(--f-label); color: var(--tube); }
+#stats dl { margin: 0; display: grid; grid-template-columns: 1fr auto; row-gap: 6px; column-gap: 12px; align-items: baseline; }
+#stats dt { font: 500 13px/1.1 var(--f-label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+#stats dd { margin: 0; font: 600 19px/1 var(--f-label); text-align: right; }
+#stats .warn dd { color: var(--amber); }
+#spark { width: 100%; height: 46px; display: block; }
+.spark-axis { display: flex; justify-content: space-between; font: 500 11px/1 var(--f-label); letter-spacing: .1em; color: var(--mute); }
+
+/* picked unit */
+#card { position: fixed; right: 16px; top: calc(372px + env(safe-area-inset-top, 0px)); width: 264px; padding: 14px 16px; display: grid; gap: 8px; }
+#card header { display: flex; align-items: flex-start; gap: 10px; }
+#card-zh { font: 900 22px/1 var(--f-zh); color: var(--neon); text-shadow: 0 0 10px rgba(255,59,78,.5); }
+#card-addr { font: 600 16px/1.15 var(--f-label); letter-spacing: .04em; }
+#card-close { margin-left: auto; padding: 4px 8px; }
+#card p { margin: 0; font-size: 14px; }
+#card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; }
+#card dt { color: var(--mute); font: 500 12px/1.5 var(--f-label); letter-spacing: .1em; text-transform: uppercase; }
+#card dd { margin: 0; }
+#card .warn dd { color: var(--amber); }
+
+/* caption */
+#caption { position: fixed; left: 50%; bottom: calc(132px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 8px); width: min(640px, calc(100% - 32px)); padding: 12px 16px; display: flex; gap: 14px; align-items: center; opacity: 0; transition: opacity .8s, transform .8s; pointer-events: none; }
+#caption.on { opacity: 1; transform: translate(-50%, 0); }
+#cap-zh { font: 900 20px/1 var(--f-zh); color: var(--tube); white-space: nowrap; text-shadow: 0 0 12px rgba(191,245,214,.45); }
+#cap-text { margin: 0; font-size: 15px; line-height: 1.45; text-wrap: pretty; }
+
+/* timeline */
+#dock { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); padding: 10px 14px 12px; display: grid; gap: 8px; }
+#controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#controls .grp { display: flex; gap: 6px; flex-wrap: wrap; }
+#controls .sep { flex: 1 1 0; }
+#track { position: relative; display: grid; gap: 4px; }
+#eras { display: flex; gap: 2px; }
+.era { min-width: 0; display: flex; gap: 6px; align-items: baseline; padding: 3px 6px; border-top: 2px solid rgba(236,230,218,.18); font: 500 11px/1 var(--f-label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); white-space: nowrap; overflow: hidden; }
+.era .zh { font: 900 12px/1 var(--f-zh); color: var(--bone); letter-spacing: 0; }
+#ticks { position: relative; height: 6px; }
+#ticks i { position: absolute; top: 0; width: 1px; height: 6px; background: var(--tube); opacity: .6; }
+input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; background: transparent; margin: 0; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 3px; background: linear-gradient(90deg, rgba(236,230,218,.25), rgba(236,230,218,.25)); border-radius: 2px; }
+input[type=range]::-moz-range-track { height: 3px; background: rgba(236,230,218,.25); border-radius: 2px; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 10px var(--neon); border: 0; }
+input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 10px var(--neon); border: 0; }
+.keys { font: 500 11px/1 var(--f-label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); }
+
+/* intro */
+#intro { position: fixed; inset: 0; display: grid; place-items: center start; padding: 16px 16px 16px clamp(16px, 8vw, 128px); background: linear-gradient(90deg, rgba(5,6,8,.9) 0%, rgba(5,6,8,.72) 42%, rgba(5,6,8,.12) 100%); transition: opacity .9s; z-index: 5; }
+#intro.gone { opacity: 0; pointer-events: none; }
+#intro .inner { max-width: 620px; display: grid; gap: 18px; justify-items: start; }
+#intro .zh { font: 900 clamp(56px, 11vw, 112px)/0.95 var(--f-zh); letter-spacing: 0.06em; color: #ffecee; text-shadow: 0 0 8px var(--neon), 0 0 30px var(--neon), 0 0 70px rgba(255,59,78,.55); }
+#intro h2 { margin: 0; font: 700 clamp(22px, 3.4vw, 32px)/1.05 var(--f-label); letter-spacing: .06em; text-transform: uppercase; text-wrap: balance; }
+#intro p { margin: 0; max-width: 60ch; color: #d6d0c4; text-wrap: pretty; }
+#intro .go { display: flex; flex-wrap: wrap; gap: 10px; }
+#intro .go button { padding: 13px 18px; font-size: 16px; }
+#intro .go button.primary { border-color: var(--neon); background: rgba(255,59,78,.2); box-shadow: 0 0 18px rgba(255,59,78,.35); }
+#intro small { color: var(--mute); font: 500 12px/1.4 var(--f-label); letter-spacing: .1em; text-transform: uppercase; }
+#loading { position: fixed; inset: auto 0 50% 0; text-align: center; font: 500 13px/1 var(--f-label); letter-spacing: .2em; text-transform: uppercase; color: var(--mute); }
+body.ready #loading { display: none; }
+body:not(.entered) #title, body:not(.entered) #stats, body:not(.entered) #dock, body:not(.entered) #caption { visibility: hidden; }
+
+@media (max-width: 760px) {
+  #title .board { font-size: 22px; padding: 8px 6px; gap: 3px; }
+  #title .meta { display: none; }
+  #stats { width: auto; padding: 10px 12px; gap: 6px; }
+  #year { font-size: 40px; }
+  #stats dl { row-gap: 3px; }
+  #stats dd { font-size: 15px; }
+  #stats dl > :nth-child(n+5) { display: none; }
+  #spark, .spark-axis { display: none; }
+  #card { top: auto; bottom: calc(200px + env(safe-area-inset-bottom, 0px)); left: 16px; right: 16px; width: auto; }
+  #caption { bottom: calc(200px + env(safe-area-inset-bottom, 0px)); }
+  #intro { background: rgba(5,6,8,.8); }
+  .keys, .era span:not(.zh) { display: none; }
+  button { padding: 7px 8px; font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { #caption, #intro { transition: none; } }
+</style>
+</head>
+<body>
+
+<canvas id="scene" aria-label="3D simulation of the Kowloon Walled City"></canvas>
+<div id="loading">Laying out the lots…</div>
+
+<header id="title">
+  <div class="board" aria-hidden="true"><span>九</span><span>龍</span><span>城</span><span>寨</span></div>
+  <div class="meta">
+    <h1>Kowloon Walled City</h1>
+    <div class="sub">Accretion · 1947–1995</div>
+    <div id="seed"></div>
+  </div>
+</header>
+
+<section id="stats" class="panel" aria-label="City at this moment">
+  <div class="when"><span id="year">1984</span><span id="month">Apr</span><span id="clock">19:00</span></div>
+  <dl>
+    <dt>Residents</dt><dd id="pop">—</dd>
+    <dt>Per km²</dt><dd id="density">—</dd>
+    <dt>Tallest</dt><dd id="storeys">—</dd>
+    <dt>Blocks</dt><dd id="blocks">—</dd>
+    <div id="dark-row" style="display:contents"><dt>Facades, no sun today</dt><dd id="dark">—</dd></div>
+  </dl>
+  <canvas id="spark" aria-label="Simulated population, 1947 to 1996"></canvas>
+  <div class="spark-axis"><span>1947</span><span>Residents</span><span>1996</span></div>
+</section>
+
+<aside id="card" class="panel" hidden aria-live="polite">
+  <header><span id="card-zh"></span><span id="card-addr"></span><button id="card-close" aria-label="Close">✕</button></header>
+  <p id="card-occ"></p>
+  <dl>
+    <dt>Built</dt><dd id="card-built"></dd>
+    <dt>Storeys</dt><dd id="card-storeys"></dd>
+    <div id="card-sun-row" style="display:contents"><dt>Sun today</dt><dd id="card-sun"></dd></div>
+  </dl>
+</aside>
+
+<div id="caption" class="panel" aria-live="polite"><span id="cap-zh"></span><p id="cap-text"></p></div>
+
+<nav id="dock" class="panel" aria-label="Timeline and controls">
+  <div id="controls">
+    <div class="grp">
+      <button id="play" aria-pressed="false">Play</button>
+      <button id="speed" title="Simulation speed">1×</button>
+      <button id="regrow" title="Grow a new city from a fresh seed (G)">Regrow</button>
+    </div>
+    <div class="grp" role="group" aria-label="Camera">
+      <button data-mode="orbit" aria-pressed="true" title="1">Orbit</button>
+      <button data-mode="rooftop" aria-pressed="false" title="2">Rooftop</button>
+      <button data-mode="alley" aria-pressed="false" title="3">Alley</button>
+      <button data-mode="ride" aria-pressed="false" title="4">Fly IGS 13</button>
+    </div>
+    <span class="sep"></span>
+    <div class="grp">
+      <button id="tod" title="Time of day (N)">Auto</button>
+      <button id="wx" title="Weather (R)">Auto</button>
+      <button id="snd" aria-pressed="false" title="M">Sound off</button>
+    </div>
+    <span class="keys">Space play · ←→ year · 1–4 camera · click a block</span>
+  </div>
+  <div id="track">
+    <div id="eras"></div>
+    <div id="ticks"></div>
+    <input id="scrub" type="range" min="0" max="1000" step="1" value="750" aria-label="Year">
+  </div>
+</nav>
+
+<div id="intro">
+  <div class="inner">
+    <div class="zh" aria-hidden="true">九龍城寨</div>
+    <h2>A city that built itself, grown again from a seed</h2>
+    <p>Every lot here has a life: a squatter hut, then concrete, then a tower that stops at fourteen storeys because the jets landing at Kai Tak need the sky. Nobody designs it. The plan, the alleys, every window, sign and antenna are generated in your browser, and each run grows a different city.</p>
+    <p>Click any block to see who lives on that floor and how many hours of sun it gets. Ride the runway 13 approach. Walk the alleys.</p>
+    <div class="go">
+      <button id="enter-grow" class="primary">Grow it from 1947</button>
+      <button id="enter-peak">Walk in at its peak</button>
+    </div>
+    <small>Sound on · works best with headphones</small>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
