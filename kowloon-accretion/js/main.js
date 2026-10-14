@@ -583,9 +583,9 @@ async function boot() {
   buildTimeline();
   if (params.has('year')) S.year = Number(params.get('year'));
   if (params.has('hour')) { S.hour = Number(params.get('hour')); S.lock = S.hour; }
-  if (params.has('wx')) weather.set(params.get('wx'));
+  if (WEATHERS.includes(params.get('wx'))) weather.set(params.get('wx'));
   traffic.spawn(S.year, APPROACH.S1 - 600);
-  if (params.has('mode')) setMode(params.get('mode'));
+  if (['orbit', 'rooftop', 'alley', 'ride'].includes(params.get('mode'))) setMode(params.get('mode'));
   if (params.has('enter')) enter(params.get('enter') === 'grow');
   updateUI(true);
   document.body.classList.add('ready');
@@ -593,4 +593,7 @@ async function boot() {
   requestAnimationFrame(frame);
   window.__kwc = { S, camera, traffic, setMode, controls, get city() { return city; }, get world() { return world; } };
 }
-boot();
+boot().catch((err) => {
+  console.error(err);
+  $('loading').textContent = `The city could not be built: ${err.message}`;
+});

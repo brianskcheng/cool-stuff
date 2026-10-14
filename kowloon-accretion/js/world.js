@@ -84,8 +84,8 @@ export class CityWorld {
     this.buildings.instanceMatrix.array.fill(0);
     this.buildings.castShadow = this.buildings.receiveShadow = true;
     this.buildings.frustumCulled = false;
-    // Fixed bounds for raycasting. three computes this once, on the first raycast; if
-    // instance 0 is an unbuilt (zeroed) lot at that moment the centre becomes NaN for good.
+    // Fixed bounds. three computes an InstancedMesh's sphere once, on the first render or
+    // raycast; if instance 0 is an unbuilt (zeroed) lot then, the centre is NaN for good.
     this.buildings.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 20, 0), 200);
     this.group.add(this.buildings);
 
