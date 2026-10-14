@@ -4,10 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cool-stuff</title>
-<meta http-equiv="refresh" content="0; url=walled-city/">
-<style>body { margin: 0; padding: 32px 16px; background: #071012; color: #e4efe7; font: 16px/1.5 system-ui, sans-serif; } a { color: #a6f2d8; }</style>
+<style>
+  :root { --bg: #071012; --fg: #e4efe7; --mute: #8fa39a; --link: #a6f2d8; --edge: rgba(228, 239, 231, 0.14); color-scheme: dark; }
+  body { margin: 0; padding: 48px 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; display: grid; gap: 20px; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: 0.04em; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  li { border: 1px solid var(--edge); border-radius: 4px; padding: 14px 16px; display: grid; gap: 4px; }
+  a { color: var(--link); font-weight: 600; text-decoration: none; }
+  a:hover, a:focus-visible { text-decoration: underline; }
+  p { margin: 0; color: var(--mute); font-size: 15px; }
+</style>
 </head>
 <body>
-<p><a href="walled-city/">九龍城寨 · Kowloon Walled City</a></p>
+<main>
+  <h1>cool-stuff</h1>
+  <ul>
+    <li>
+      <a href="kowloon-accretion/">九龍城寨 · Accretion</a>
+      <p>The Walled City grown from a seed, 1947 to 1996: huts, towers under the Kai Tak approach, demolition, the park. Walk the alleys, inspect any floor, fly the checkerboard approach.</p>
+    </li>
+    <li>
+      <a href="walled-city/">九龍城寨 · Kowloon Walled City</a>
+      <p>The earlier 3D model of the Walled City.</p>
+    </li>
+  </ul>
+</main>
 </body>
 </html>
