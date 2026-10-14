@@ -2,6 +2,8 @@
 
 The Kowloon Walled City, grown from a seed in your browser. Each lot lives through squatter hut, low concrete block and fourteen-storey tower, then evacuation, demolition and the 1995 garden. Nothing is modelled by hand: the plan, the alleys, every window, sign, antenna, wire and water tank are generated, and every seed grows a different city.
 
+**Live:** https://brianskcheng.github.io/cool-stuff/kowloon-accretion/
+
 ## Run it
 
 It is a static page with ES modules, so it needs to be served over HTTP:

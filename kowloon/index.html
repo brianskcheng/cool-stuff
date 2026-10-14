@@ -30,6 +30,7 @@ body { margin: 0; background: var(--ink); color: var(--bone); font: 15px/1.45 va
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 button { font: 600 14px/1 var(--f-label); letter-spacing: 0.06em; text-transform: uppercase; color: var(--bone); background: transparent; border: 1px solid var(--glass-edge); border-radius: 3px; padding: 8px 11px; cursor: pointer; transition: border-color .2s, background .2s, color .2s; }
 button:hover { border-color: rgba(236, 230, 218, 0.4); }
+button:disabled { opacity: 0.45; cursor: progress; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--tube); outline-offset: 2px; }
 button[aria-pressed="true"] { border-color: var(--neon); color: #fff; background: rgba(255, 59, 78, 0.16); }
 .panel { background: var(--glass); border: 1px solid var(--glass-edge); backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2); border-radius: 4px; }
@@ -200,8 +201,8 @@ body:not(.entered) #title, body:not(.entered) #stats, body:not(.entered) #dock, 
     <p>Every lot here has a life: a squatter hut, then concrete, then a tower that stops at fourteen storeys because the jets landing at Kai Tak need the sky. Nobody designs it. The plan, the alleys, every window, sign and antenna are generated in your browser, and each run grows a different city.</p>
     <p>Click any block to see who lives on that floor and how many hours of sun it gets. Ride the runway 13 approach. Walk the alleys.</p>
     <div class="go">
-      <button id="enter-grow" class="primary">Grow it from 1947</button>
-      <button id="enter-peak">Walk in at its peak</button>
+      <button id="enter-grow" class="primary" disabled>Grow it from 1947</button>
+      <button id="enter-peak" disabled>Walk in at its peak</button>
     </div>
     <small>Sound on · works best with headphones</small>
   </div>
