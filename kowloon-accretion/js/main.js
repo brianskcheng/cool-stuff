@@ -318,8 +318,9 @@ function updateCamera(dt) {
 
 // drag-to-look for the first-person modes
 let drag = null;
-canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; controls.autoRotate = false; });
+canvas.addEventListener('pointerdown', (e) => { if (!world) return; drag = { x: e.clientX, y: e.clientY, moved: 0 }; controls.autoRotate = false; });
 window.addEventListener('pointermove', (e) => {
+  if (!world) return;
   if (!drag) return hover(e);
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -470,6 +471,7 @@ $('scrub').addEventListener('input', (e) => {
   updateUI(true);
 });
 window.addEventListener('keydown', (e) => {
+  if (!world) return; // still laying out the lots
   if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
   const k = e.key.toLowerCase();
   if (k === ' ') { e.preventDefault(); togglePlay(); }
@@ -495,8 +497,8 @@ function enter(grow) {
   togglePlay(grow);
   if (!grow) { capIdx = captionFor(S.year); showCaption(CAPTIONS[capIdx]); }
 }
-$('enter-grow').onclick = () => enter(true);
-$('enter-peak').onclick = () => enter(false);
+$('enter-grow').onclick = () => world && enter(true);
+$('enter-peak').onclick = () => world && enter(false);
 
 // --- loop --------------------------------------------------------------------
 const clock = new THREE.Clock();
@@ -587,7 +589,8 @@ async function boot() {
   if (params.has('enter')) enter(params.get('enter') === 'grow');
   updateUI(true);
   document.body.classList.add('ready');
+  $('enter-grow').disabled = $('enter-peak').disabled = false;
   requestAnimationFrame(frame);
-  window.__kwc = { S, city, world, camera, traffic, setMode, controls };
+  window.__kwc = { S, camera, traffic, setMode, controls, get city() { return city; }, get world() { return world; } };
 }
 boot();
