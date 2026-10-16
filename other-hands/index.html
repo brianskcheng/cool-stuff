@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>The Museum of Other Hands</title>
+  <meta name="description" content="A first-person puzzle in four rooms whose walls are glued to themselves: a cylinder, a torus, a Möbius band and a Klein bottle. Walk round a twisted seam and come back as your own reflection.">
+  <meta name="theme-color" content="#f2f0eb">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='4' width='24' height='24' fill='%23f2f0eb' stroke='%231e1e23' stroke-width='2.5'/%3E%3Cpath d='M10 4v24M22 4v24' stroke='%232b45ff' stroke-width='2' stroke-dasharray='3 3'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23ff4533'/%3E%3C/svg%3E">
+</head>
+<body>
+  <canvas id="view" aria-label="First-person view of a gallery room whose walls are glued to themselves"></canvas>
+
+  <div class="hud">
+    <header class="room-tag">
+      <span class="num" id="roomNum">I</span>
+      <div>
+        <p class="space" id="roomSpace">Cylinder</p>
+        <h2 id="roomTitle">The Loop</h2>
+        <p class="goal" id="roomGoal"></p>
+      </div>
+    </header>
+
+    <div class="top-right">
+      <button class="chip" id="menuBtn" aria-haspopup="true">Rooms</button>
+      <div class="menu" id="menu">
+        <div id="roomList"></div>
+        <hr>
+        <button class="menu-line" id="soundBtn">Sound on</button>
+        <button class="menu-line" id="aboutBtn">How it works</button>
+      </div>
+    </div>
+
+    <figure class="plan">
+      <canvas id="map" aria-label="Floor plan of the room with its gluings"></canvas>
+      <figcaption>Floor plan · matching arrows are the same wall</figcaption>
+    </figure>
+
+    <div class="free" id="freePanel" hidden>
+      <p class="free-title">How the walls meet</p>
+      <div class="free-row"><span>West ↔ East</span><div class="seg" data-axis="gx"><button data-v="wall">Wall</button><button data-v="straight">Straight</button><button data-v="twisted">Twisted</button></div></div>
+      <div class="free-row"><span>South ↔ North</span><div class="seg" data-axis="gz"><button data-v="wall">Wall</button><button data-v="straight">Straight</button><button data-v="twisted">Twisted</button></div></div>
+    </div>
+
+    <div class="reticle" aria-hidden="true"></div>
+    <p class="prompt" id="prompt" aria-live="polite"></p>
+    <p class="flash" id="flash" aria-live="polite"></p>
+    <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+    <canvas id="hand" aria-hidden="true"></canvas>
+    <button class="use" id="useBtn">Use</button>
+    <div class="stick" id="stick" aria-hidden="true"><i id="knob"></i></div>
+  </div>
+
+  <section class="intro" id="intro">
+    <div class="intro-card">
+      <p class="kicker">A museum in four rooms</p>
+      <h1>The Museum of <span>Other</span> Hands</h1>
+      <p class="lede">Every room here is glued to itself. Walk out through one wall and you come back in through the opposite one. In some rooms the glue has a twist, and you come back as your own reflection. The doors only open for visitors who notice.</p>
+      <dl class="keys desk">
+        <div><dt>Walk</dt><dd>W A S D</dd></div>
+        <div><dt>Look</dt><dd>Mouse</dd></div>
+        <div><dt>Use</dt><dd>E or click</dd></div>
+        <div><dt>Run</dt><dd>Shift</dd></div>
+      </dl>
+      <dl class="keys touch">
+        <div><dt>Walk</dt><dd>Left thumb</dd></div>
+        <div><dt>Look</dt><dd>Right thumb</dd></div>
+        <div><dt>Use</dt><dd>Use button</dd></div>
+      </dl>
+      <button class="enter" id="enter">Enter the museum</button>
+      <p class="fine">With sound. Headphones make the twisted seams more fun.</p>
+    </div>
+  </section>
+
+  <section class="end" id="end" hidden>
+    <div class="intro-card">
+      <p class="kicker">Exit</p>
+      <h1>You have seen all four rooms.</h1>
+      <p class="lede" id="endNote"></p>
+      <div class="end-actions">
+        <button class="enter" id="toFree">Free walk: choose your own gluing</button>
+        <button class="ghost" id="again">Start again</button>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="about">
+    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+    <p class="kicker">How it works</p>
+    <h2>The copies are not reflections. They are the room.</h2>
+    <p>Each room is one square of floor. Each pair of opposite walls is either a real wall, glued straight across, or glued with a half-twist. Glue one pair straight and you get a <b>cylinder</b>. Glue both and you get a <b>torus</b>. Twist one pair for a <b>Möbius band</b>, or twist one of two glued pairs for a <b>Klein bottle</b>.</p>
+    <p>What you walk around in is the <b>universal cover</b>: the whole plane, tiled by copies of the square, one for each deck transformation. Every deck transformation here has the form (x, z) ↦ (±x + a, ±z + b), and a copy is mirrored exactly when the two signs differ. The renderer draws the room once and instances it about eighty times, one instance per deck transformation near you. Lighting is computed in each copy's own frame.</p>
+    <p>You never flip. The camera is always an ordinary right-handed camera. What changes is which copy of the room you are standing in, and in half of them the room is the mirror image of the one you started in. So a left-hand print, seen from a mirrored copy, is a right-hand print. An L-shaped key you pick up in one copy is a J to the room in the next.</p>
+    <p>All four surfaces are flat: their copies tile the plane without stretching. Twist both pairs and you get the projective plane, which cannot be flat. That is why the free walk won't offer it.</p>
+    <p class="fine">After Jeff Weeks, <i>The Shape of Space</i>, and his Torus Games. Built with WebGL2 and Web Audio; no libraries.</p>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
