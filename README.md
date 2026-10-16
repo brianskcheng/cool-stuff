@@ -1,3 +1,3 @@
 # cool-stuff
 
-- [`hear-the-shape/`](hear-the-shape/): draw a drum, hear its eigenmodes, and meet the two drums that sound the same. Live at https://brianskcheng.github.io/cool-stuff/hear-the-shape/
+- [`other-hands/`](other-hands/): **The Museum of Other Hands**, a first-person puzzle in rooms glued to themselves (cylinder, torus, Möbius band, Klein bottle). Live at https://brianskcheng.github.io/cool-stuff/other-hands/
