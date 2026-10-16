@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eigendrum</title>
+<meta name="description" content="Draw any shape and play it as a drum. The wave equation is solved live in your browser: every resonant mode, its sound, its nodal lines, and what the sound alone gives away about the shape.">
+<meta name="theme-color" content="#08090b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%2310110f' stroke='%23d9c49b' stroke-width='4'/%3E%3Cpath d='M10 32c7-10 14 10 22 0s15 10 22 0' fill='none' stroke='%23ffb35c' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090b;
+    --ink: #f1e8d8;
+    --muted: rgba(241, 232, 216, 0.58);
+    --faint: rgba(241, 232, 216, 0.32);
+    --line: rgba(255, 255, 255, 0.08);
+    --gold: #ffd68c;
+    --amber: #ffad5a;
+    --panel: rgba(17, 18, 22, 0.78);
+    --spec-h: 118px;
+    --serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--sans); overflow: hidden; }
+  body { -webkit-font-smoothing: antialiased; touch-action: none; }
+  button { font: inherit; color: inherit; }
+
+  #stage canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #fg { touch-action: none; cursor: crosshair; }
+
+  /* top bar */
+  #top {
+    position: fixed; top: 0; left: 0; right: 0; height: 60px; padding: 0 18px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    pointer-events: none; z-index: 5;
+  }
+  #top > * { pointer-events: auto; }
+  .brand { display: flex; align-items: baseline; gap: 14px; min-width: 0; }
+  .brand h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: 0.01em; }
+  .brand h1 em { color: var(--gold); font-style: italic; }
+  .brand span { font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  nav { display: flex; gap: 8px; }
+
+  .btn, nav button, #dock button, .card button {
+    background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 999px;
+    padding: 7px 14px; font-size: 13px; letter-spacing: 0.01em; cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s; white-space: nowrap;
+  }
+  nav button:hover, #dock button:hover, .card button:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.18); }
+  button.on { background: rgba(255, 214, 140, 0.16); border-color: rgba(255, 214, 140, 0.55); color: #fff3dc; }
+  button.primary { background: var(--gold); color: #1a1408; border-color: var(--gold); font-weight: 600; }
+  button.primary:hover { background: #ffe2a8; }
+  button.ghost { border-style: dashed; }
+  body.iso #btn-iso { background: rgba(255, 214, 140, 0.16); border-color: rgba(255, 214, 140, 0.55); }
+
+  /* right panel */
+  #panel {
+    position: fixed; top: 64px; right: 16px; width: 314px; max-height: calc(100vh - var(--spec-h) - 140px);
+    overflow-y: auto; display: flex; flex-direction: column; gap: 10px; z-index: 4; scrollbar-width: thin;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  .card.accent { border-color: rgba(255, 214, 140, 0.28); }
+  .card h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 400; font-size: 21px; line-height: 1.15; }
+  .card p { margin: 6px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+  .card p.small { font-size: 12px; color: var(--faint); }
+  .card .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .card.mono { font-family: var(--mono); font-size: 12px; }
+  .stat { display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 10px; margin-top: 8px; }
+  .stat span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+  .stat b { font-family: var(--mono); font-weight: 500; font-size: 17px; text-align: right; color: #fff4df; }
+  .stat i { grid-column: 1 / -1; font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: right; }
+  .kv { display: flex; justify-content: space-between; padding: 2px 0; color: var(--muted); }
+  .kv b { color: var(--ink); font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: right; padding: 2px 0; }
+  th { color: var(--faint); font-weight: 500; }
+  td { color: var(--ink); }
+  td:first-child, th:first-child { text-align: left; color: var(--faint); }
+  .hidden { display: none !important; }
+
+  /* dock */
+  #dock {
+    position: fixed; left: 16px; right: 16px; bottom: calc(var(--spec-h) + 8px); z-index: 5;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; pointer-events: none;
+  }
+  #dock > * { pointer-events: auto; }
+  .tools, #presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tools { padding: 4px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--line); border-radius: 999px; }
+  .tools button { border-color: transparent; background: transparent; }
+  #presets button { font-size: 12.5px; padding: 6px 11px; }
+  #sound { position: relative; }
+  #sound summary { list-style: none; cursor: pointer; }
+  #sound summary::-webkit-details-marker { display: none; }
+  #sound .pop {
+    position: absolute; bottom: 44px; left: 0; width: 280px; padding: 14px 16px; border-radius: 14px;
+    background: rgba(17, 18, 22, 0.94); border: 1px solid var(--line); backdrop-filter: blur(14px);
+  }
+  .slider { display: grid; grid-template-columns: 74px 1fr 58px; align-items: center; gap: 10px; margin: 6px 0; font-size: 12.5px; color: var(--muted); }
+  .slider output { font-family: var(--mono); font-size: 11.5px; color: var(--ink); text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--gold); }
+
+  #hint {
+    position: fixed; left: 50%; transform: translateX(-50%); top: 64px; z-index: 3; pointer-events: none;
+    font-size: 13px; color: var(--muted); text-align: center; max-width: min(760px, 92vw); line-height: 1.5;
+  }
+  #hint b { color: var(--ink); font-weight: 500; }
+  #hint .dim, #readout .dim { color: var(--faint); }
+
+  /* spectrum */
+  #spec {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--spec-h); z-index: 4;
+    background: linear-gradient(to top, rgba(8, 9, 11, 0.96) 70%, rgba(8, 9, 11, 0));
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  #readout { height: 26px; padding: 6px 16px 0; display: flex; gap: 12px; align-items: baseline; font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; }
+  #readout b { color: var(--gold); font-weight: 600; font-size: 13px; }
+  #spectrum { display: block; width: 100%; height: calc(var(--spec-h) - 26px); }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(var(--spec-h) + 70px); transform: translate(-50%, 10px); opacity: 0;
+    background: rgba(20, 21, 25, 0.95); border: 1px solid rgba(255, 214, 140, 0.3); border-radius: 999px;
+    padding: 9px 18px; font-size: 13px; z-index: 20; transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+    max-width: 92vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* intro */
+  #intro {
+    position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px;
+    background: radial-gradient(ellipse at 50% 40%, rgba(20, 20, 24, 0.82), rgba(5, 6, 7, 0.97) 70%);
+    transition: opacity 0.6s; backdrop-filter: blur(3px);
+  }
+  #intro.gone { opacity: 0; pointer-events: none; }
+  .intro-inner { max-width: 640px; text-align: center; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); opacity: 0.85; }
+  #intro h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 7.4vw, 76px); line-height: 1.0; margin: 14px 0 18px; letter-spacing: -0.01em; }
+  #intro h2 em { color: var(--gold); }
+  #intro .lead { font-size: clamp(15px, 2.1vw, 18px); line-height: 1.6; color: var(--muted); margin: 0 auto 28px; max-width: 540px; }
+  #begin { font-size: 16px; padding: 13px 28px; border-radius: 999px; }
+  #intro .fine { margin-top: 16px; font-size: 12.5px; color: var(--faint); }
+
+  /* about */
+  #about {
+    position: fixed; inset: 0; z-index: 25; display: none; place-items: center; padding: 20px;
+    background: rgba(4, 5, 6, 0.8); backdrop-filter: blur(6px);
+  }
+  #about.open { display: grid; }
+  #about .sheet {
+    max-width: 680px; max-height: 86vh; overflow-y: auto; background: #111216; border: 1px solid var(--line);
+    border-radius: 18px; padding: 26px 30px; position: relative;
+  }
+  #about h2 { font-family: var(--serif); font-weight: 400; font-size: 34px; margin: 0 0 10px; }
+  #about h4 { font-family: var(--mono); font-weight: 500; font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); margin: 22px 0 6px; }
+  #about p, #about li { font-size: 14.5px; line-height: 1.62; color: var(--muted); }
+  #about code { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+  #about-close { position: absolute; top: 14px; right: 14px; }
+  kbd { font-family: var(--mono); font-size: 11.5px; padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; color: var(--ink); }
+
+  .short, #btn-notes { display: none; }
+  #panel, #about .sheet { touch-action: pan-y; }
+  #presets { touch-action: pan-x; }
+  .weyl { display: block; width: 100%; height: 92px; margin-top: 10px; }
+  @media (max-width: 1080px) {
+    #btn-notes { display: inline-block; }
+    #panel { display: none; }
+    body.panel-open #panel {
+      display: flex; top: 60px; left: 12px; right: 12px; width: auto; z-index: 15;
+      max-height: calc(100vh - var(--spec-h) - 150px);
+    }
+    body.panel-open #btn-notes { background: rgba(255, 214, 140, 0.16); border-color: rgba(255, 214, 140, 0.55); }
+  }
+  @media (max-width: 760px) {
+    #top { height: 52px; padding: 0 12px; }
+    .brand h1 { font-size: 25px; }
+    .brand span { display: none; }
+    nav { gap: 5px; }
+    nav button { padding: 6px 9px; font-size: 12px; }
+    .long { display: none; }
+    .short { display: inline; }
+    body.panel-open #panel { top: 54px; left: 8px; right: 8px; }
+    #hint { top: 54px; font-size: 12px; }
+    #hint .dim { display: none; }
+    #dock { left: 10px; right: 10px; gap: 6px; }
+    #presets { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+    #presets::-webkit-scrollbar { display: none; }
+    #readout .dim { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="bg"></canvas>
+    <canvas id="gl"></canvas>
+    <canvas id="fg"></canvas>
+  </div>
+
+  <header id="top">
+    <div class="brand">
+      <h1>Eigen<em>drum</em></h1>
+      <span>Can you hear the shape of a drum?</span>
+    </div>
+    <nav>
+      <button id="btn-iso" title="Two different drums with identical spectra (I)"><span class="long">Two drums, one voice</span><span class="short">Twin drums</span></button>
+      <button id="btn-notes" title="Show the notes panel">Notes</button>
+      <button id="btn-share" title="Copy a link to this drum">Share</button>
+      <button id="btn-about" title="How it works">?</button>
+    </nav>
+  </header>
+
+  <div id="hint"></div>
+  <aside id="panel"></aside>
+
+  <div id="dock">
+    <div class="tools">
+      <button data-tool="play" class="on" title="Strike and rub (P)">Play</button>
+      <button data-tool="draw" title="Add loops: holes inside, extra membranes outside (D)">Draw</button>
+      <button data-tool="mass" title="Paint weight onto the head (M)">Mass</button>
+      <button id="btn-sand" title="Sprinkle Chladni sand (S)">Sand</button>
+    </div>
+    <details id="sound">
+      <summary class="btn">Sound</summary>
+      <div class="pop">
+        <label class="slider">Tension <input id="s-tension" type="range" min="25" max="260" step="1" value="72"><output id="s-tension-v"></output></label>
+        <label class="slider">Mallet <input id="s-hard" type="range" min="0" max="1" step="0.01" value="0.45"><output id="s-hard-v"></output></label>
+        <label class="slider">Sustain <input id="s-sustain" type="range" min="0.3" max="4" step="0.1" value="1"><output id="s-sustain-v"></output></label>
+        <label class="slider">Room <input id="s-reverb" type="range" min="0" max="0.8" step="0.01" value="0.22"><output id="s-reverb-v"></output></label>
+      </div>
+    </details>
+    <div id="presets"></div>
+  </div>
+
+  <footer id="spec">
+    <div id="readout"></div>
+    <canvas id="spectrum"></canvas>
+  </footer>
+
+  <div id="toast"></div>
+
+  <div id="intro">
+    <div class="intro-inner">
+      <div class="eyebrow">Mark Kac &middot; 1966</div>
+      <h2>Can you hear the <em>shape</em> of a drum?</h2>
+      <p class="lead">Draw any shape. In about a second this page solves the wave equation on it and finds its 64 lowest modes of vibration. Then you can play it, watch it ring, and see how much of the shape the sound gives away.</p>
+      <button id="begin" class="primary">Begin &mdash; sound on</button>
+      <div class="fine">Headphones help. Everything is computed live, in your browser.</div>
+    </div>
+  </div>
+
+  <div id="about">
+    <div class="sheet">
+      <button id="about-close" class="btn">Close</button>
+      <h2>How Eigendrum works</h2>
+      <p>A drumhead is a stretched membrane fixed at its rim. Strike it and it vibrates as a sum of <em>modes</em>: standing waves, each with its own frequency. The mode shapes and pitches depend only on the outline. Mark Kac asked in 1966 whether the reverse is true: whether the pitches pin down the outline.</p>
+      <h4>The solver</h4>
+      <p>Your outline is sampled on a grid of about 7,000 points. The rim boundary condition is placed at the exact distance from each grid point to the curve, not snapped to the nearest point. The Laplacian becomes a sparse matrix, which is factored once with an envelope Cholesky decomposition. A shift-and-invert block Lanczos iteration then pulls out the 64 lowest eigenvalues and eigenvectors. It all runs in a Web Worker, in plain JavaScript. On a square it reproduces the exact discrete eigenvalues to ten digits; on a circle it is within 0.1% of the Bessel zeros.</p>
+      <h4>The sound</h4>
+      <p>Each mode is a damped resonator in an AudioWorklet. A strike at a point excites mode <i>k</i> in proportion to the mode’s height there, so striking near the rim sounds brighter than striking the middle, just as on a real drum. Mallet hardness filters the high modes, and each mode’s loudness is weighted by how much air it pushes. Rubbing feeds friction noise into the modes under your finger.</p>
+      <h4>What the spectrum gives away</h4>
+      <p>Weyl’s law says the number of modes below frequency <i>f</i> grows like (area) &times; <i>f</i>&sup2;, minus a correction proportional to the rim length. The panel fits those two terms to your drum’s 64 frequencies and recovers its area and perimeter from the sound alone.</p>
+      <h4>What it doesn’t</h4>
+      <p>In 1992 Gordon, Webb and Wolpert found two different shapes with identical spectra, each built from seven half-squares glued according to the Fano plane. Try <b>Two drums, one voice</b>. The page solves both drums on lattice-aligned grids, so even the discrete problems are exactly isospectral: all 64 frequencies match to round-off.</p>
+      <h4>Tabla tuning</h4>
+      <p>With the Mass tool you can load the head unevenly. <b>Harmonize</b> uses the derivative of each eigenvalue with respect to the density at every point (<code>&part;&lambda;/&part;&rho; = &minus;&lambda;&phi;&sup2;</code>) to move mass until the overtones fall on the harmonic series. C. V. Raman studied exactly this effect in the tabla.</p>
+      <h4>Keys</h4>
+      <p><kbd>Space</kbd> strike &middot; <kbd>&larr;</kbd><kbd>&rarr;</kbd> step through modes &middot; <kbd>Esc</kbd> release &middot; <kbd>1</kbd>&ndash;<kbd>9</kbd> presets &middot; <kbd>0</kbd> random &middot; <kbd>P</kbd> <kbd>D</kbd> <kbd>M</kbd> tools &middot; <kbd>S</kbd> sand &middot; <kbd>I</kbd> isospectral pair</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
