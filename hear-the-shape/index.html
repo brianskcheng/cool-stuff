@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hear the Shape</title>
+  <meta name="description" content="Draw any outline. A soap film stretches across it, its eigenmodes are solved live in your browser, and you can play it. Can you hear the shape of a drum?">
+  <meta name="theme-color" content="#09080a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M6 20c0-9 7-15 13-13s8 9 4 14-17 8-17-1z' fill='none' stroke='%23ff5a36' stroke-width='2.4'/%3E%3C/svg%3E">
+</head>
+<body>
+  <canvas id="gl" aria-label="A soap-film drum. Tap to strike it."></canvas>
+  <canvas id="overlay" aria-hidden="true"></canvas>
+
+  <header class="masthead">
+    <p class="kicker">An instrument for a question asked in 1966</p>
+    <h1>Can you hear the <em>shape</em> of&nbsp;a&nbsp;drum?</h1>
+    <p class="lede">Bend a wire into any outline and stretch a film across it. Every outline has a set of notes it can ring, and the browser works them all out as you draw. Strike it, listen, then decide.</p>
+  </header>
+
+  <div class="twin-labels" aria-hidden="true"><span id="labelA">A</span><span id="labelB">B</span></div>
+  <p class="hint" id="hint">Tap the film to strike it · drag outside it to draw a new drum</p>
+
+  <aside class="panel" id="panel">
+    <button class="panel-close" id="panelClose" aria-label="Close">×</button>
+    <section class="readout" id="readout"></section>
+    <section class="atlas">
+      <header class="atlas-head">
+        <h2 id="atlasTitle">Its voices</h2>
+        <span class="atlas-note" id="atlasNote">mode shapes · tap to hold a note</span>
+      </header>
+      <div class="atlas-grid" id="atlas"></div>
+    </section>
+  </aside>
+
+  <div class="dock">
+    <div class="toolbar" role="toolbar" aria-label="Controls">
+      <div class="group">
+        <button class="btn primary" id="drawBtn" title="Draw a new drum (D)"><i class="dot"></i>Draw</button>
+        <div class="pop-wrap">
+          <button class="btn" id="shapesBtn" aria-haspopup="true" aria-expanded="false">Shapes</button>
+          <div class="pop" id="shapesPop" role="menu"></div>
+        </div>
+        <button class="btn" id="twinBtn" title="Two different drums that sound the same (T)">Two drums</button>
+        <button class="btn" id="voicesBtn">Voices</button>
+      </div>
+      <div class="group">
+        <div class="seg" id="material" role="radiogroup" aria-label="Material">
+          <button data-m="skin" class="on" role="radio" aria-checked="true">Skin</button>
+          <button data-m="steel" role="radio" aria-checked="false">Steel</button>
+          <button data-m="glass" role="radio" aria-checked="false">Glass</button>
+        </div>
+        <label class="slider"><span>Tension</span><input id="tension" type="range" min="-12" max="12" step="1" value="0"><output id="tensionOut">0</output></label>
+        <label class="slider"><span>Mallet</span><input id="mallet" type="range" min="0" max="1" step="0.01" value="0.45"><output id="malletOut">felt</output></label>
+      </div>
+      <div class="group">
+        <button class="btn" id="dustBtn" title="Sprinkle dust: it gathers on the still lines (S)">Dust</button>
+        <button class="btn" id="micBtn" title="Sing to the drum">Sing to it</button>
+        <button class="btn ghost" id="howBtn">How it works</button>
+      </div>
+    </div>
+    <div class="spectrum-wrap">
+      <span class="spectrum-label" id="specLabel">Spectrum · every note this drum can make</span>
+      <canvas id="spectrum"></canvas>
+    </div>
+  </div>
+
+  <div class="solving" id="solving" hidden>
+    <div class="solving-ring"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="17"/><circle id="solvingArc" cx="20" cy="20" r="17"/></svg></div>
+    <p id="solvingText">Listening to your outline…</p>
+  </div>
+
+  <p class="toast" id="toast" role="status" aria-live="polite"></p>
+
+  <dialog id="how">
+    <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
+    <p class="kicker">How it works</p>
+    <h2>Everything you hear is solved, not sampled.</h2>
+    <ol class="steps">
+      <li><b>Outline → grid.</b> Your loop is laid over a grid about sixty cells across. Every grid point inside the wire becomes an unknown, usually 1,500–4,000 of them.</li>
+      <li><b>The operator.</b> A stretched film obeys the wave equation, and its modes are eigenfunctions of the Laplacian, held at zero on the wire: −Δφ = λφ. On the grid that is the five-point stencil, a sparse symmetric matrix.</li>
+      <li><b>The solve.</b> A banded Cholesky factorisation (the bandwidth is about one grid row), then block Lanczos on the inverse with full re-orthogonalisation. The block size is three, so a symmetric drum's repeated notes are all found, not just one of each pair. A Rayleigh–Ritz step keeps the lowest ~90 modes that converged. It all runs in a Web Worker and usually takes well under a second.</li>
+      <li><b>The sound.</b> Each eigenpair becomes a resonator in an AudioWorklet. Striking at point <i>p</i> excites mode <i>k</i> in proportion to φ<sub>k</sub>(<i>p</i>), which is the drum's Green's function, so <em>where</em> you hit matters. Skin rings at f ∝ √λ. Steel and glass reuse the same mode shapes with the plate law f ∝ λ. That last part is an approximation: a real plate's modes differ.</li>
+      <li><b>The picture.</b> The film is u(x,t) = Σ a<sub>k</sub> φ<sub>k</sub>(x) e<sup>−t/τ<sub>k</sub></sup> sin(Ω<sub>k</sub>t), slowed about a hundredfold so you can watch the wave leave the mallet and bounce off the wire. The colour is real thin-film interference, integrated over eight wavelengths.</li>
+      <li><b>Dust.</b> Grains jump in proportion to how hard the film moves under them, so they drift to the lines that stay still. These are Chladni figures, but for <em>your</em> shape.</li>
+    </ol>
+    <h3>So, can you hear the shape?</h3>
+    <p><b>Partly.</b> Weyl's law says the count of notes below λ grows like Aλ/4π − P√λ/4π + c. Fitting that to the spectrum recovers the drum's <b>area</b> and <b>perimeter</b> from sound alone. Those are the "heard" numbers in the panel.</p>
+    <p><b>But not entirely.</b> Gordon, Webb and Wolpert (1992) built two different drums with identical spectra. To find them here, every one of the 318 shapes that can be made from seven half-squares was enumerated and its spectrum computed. Exactly one pair matched: theirs. On this grid their notes agree to about eleven decimal places. Press <i>Two drums</i> to hear them.</p>
+    <p class="fine">Kac, “Can one hear the shape of a drum?”, Amer. Math. Monthly 73 (1966). Gordon, Webb &amp; Wolpert, Invent. Math. 110 (1992). Headphones recommended. The microphone is analysed on your device and never recorded or sent anywhere.</p>
+  </dialog>
+
+  <noscript><p class="fallback">This instrument needs JavaScript and WebGL2.</p></noscript>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
