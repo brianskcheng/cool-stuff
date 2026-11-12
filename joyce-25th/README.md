@@ -3,7 +3,7 @@
 A one-page invitation with an RSVP form, built to match Joyce's Y2K scrapbook
 poster. Plain HTML, CSS and JavaScript: no build step.
 
-Live at https://brianskcheng.github.io/cool-stuff/joyce-25th/
+Live at https://joycesqlee.com/25th/
 
 ## Files
 
