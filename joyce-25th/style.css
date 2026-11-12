@@ -270,6 +270,37 @@ body {
   overflow: visible;
 }
 
+/* "15 going so far!" on a price-sticker starburst */
+.burst {
+  position: absolute;
+  left: max(.2rem, calc(50% - 11.6rem));
+  top: -1.5rem;
+  z-index: 3;
+  width: clamp(4.7rem, 22vw, 5.7rem);
+  aspect-ratio: 1;
+  margin: 0;
+  rotate: -13deg;
+  filter: drop-shadow(2px 3px 0 var(--ink));
+  animation: bob 4.6s ease-in-out infinite alternate;
+}
+.burst__in {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--yellow);
+  -webkit-clip-path: var(--burst, circle(50%));
+  clip-path: var(--burst, circle(50%));
+  line-height: 1;
+}
+.burst b { font: 400 1.75rem/1 var(--cut); color: var(--pink); }
+.burst i { font-style: normal; font-weight: 700; font-size: .78rem; line-height: 1; color: var(--ink); }
+
+.tally { margin: -.6rem 1.2rem .4rem; text-align: center; font-size: 1.45rem; font-weight: 700; }
+.tally b { font: 400 1.7rem/1 var(--cut); color: var(--pink); margin-right: .15em; }
+.counted { margin: 0 1.6rem 2.1rem; text-wrap: balance; }
+
 /* ---------- buttons ---------- */
 .btn {
   display: inline-flex;
@@ -496,6 +527,7 @@ body {
 .guest { padding: .45rem .8rem .3rem; background: var(--bg, #fff); border: 2px solid var(--ink); border-radius: .5rem; box-shadow: 2px 2px 0 var(--ink); rotate: var(--r, 0deg); font-size: 1.15rem; font-weight: 700; line-height: 1.15; text-align: center; }
 .guest small { display: block; font-size: .85rem; font-weight: 400; color: #4f4641; max-width: 11rem; }
 .guest--maybe { border-style: dashed; box-shadow: none; }
+.guest--more { background: none; border-style: dotted; box-shadow: none; font-weight: 400; rotate: 0deg; }
 
 /* ---------- sign-off ---------- */
 .foot { min-height: 20rem; padding: 3.6rem 1.4rem 0; overflow: hidden; }

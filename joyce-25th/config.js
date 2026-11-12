@@ -11,6 +11,10 @@ window.PARTY = {
     "Dinner & karaoke from 7:00pm. 3 hours of karaoke (TBC). Dinner is ordered at the karaoke. Dress code: Y2K party theme.",
 
   rsvp: {
+    // People who said yes to Joyce before this page existed. They are counted
+    // in "going so far" but are not on the sign-up list. Joyce can change the
+    // number from her list page once the sign-up list is connected.
+    baseGoing: 15,
     // Paste the Google Apps Script web app URL here to save sign-ups to a
     // Google Sheet and show the guest list on the page (see README.md).
     // Left empty, the form sends the RSVP as a WhatsApp message instead.

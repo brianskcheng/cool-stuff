@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guest list · Joyce's 25th</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#eee8e4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Bevan&family=DM+Serif+Display&family=Kalam:wght@400;700&family=Rozha+One&family=Ultra&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📋%3C/text%3E%3C/svg%3E">
+<style>
+  .gl { padding: 2.2rem 1.1rem 3rem; min-height: 100vh; }
+  .gl h1 { margin: 0 0 .3rem; text-align: center; font: 400 2.3rem/1.1 var(--cut); color: var(--magenta); }
+  .gl__sub { margin: 0 0 1.6rem; text-align: center; color: var(--soft); }
+  .card { background: #fffdf8; border: 2.5px solid var(--ink); border-radius: .9rem; box-shadow: 3px 4px 0 var(--ink); padding: 1.1rem 1.1rem 1rem; }
+  .gate { display: grid; gap: .8rem; }
+  .gate input { font: 400 1.2rem/1.3 var(--hand); padding: .6rem .7rem .4rem; border: 2px solid var(--ink); border-radius: .5rem; width: 100%; background: #fff; }
+  .gate .btn { justify-self: start; }
+  .msg { margin: 0; font-weight: 700; color: #a3123f; }
+
+  .totals { text-align: center; }
+  .totals__n { font: 400 4.2rem/1 var(--cut); color: var(--pink); }
+  .totals__l { font-size: 1.5rem; font-weight: 700; margin: 0 0 .6rem; }
+  .totals__split { margin: 0; font-size: 1.12rem; }
+  .totals__split b { font-size: 1.3rem; }
+  .totals__other { margin: .5rem 0 0; color: var(--soft); }
+  .bar { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; margin: 1.3rem 0 .4rem; }
+  .bar .btn { font-size: 1.05rem; }
+
+  .group { margin-top: 1.8rem; }
+  .group h2 { margin: 0 0 .6rem; font-size: 1.5rem; display: flex; align-items: baseline; gap: .5rem; }
+  .group h2 span { font-size: 1.05rem; font-weight: 400; color: var(--soft); }
+  .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: .1rem .6rem; align-items: start; background: #fffdf8; border: 2px solid var(--ink); border-radius: .6rem; padding: .6rem .7rem .45rem .85rem; }
+  .row__name { font-size: 1.3rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+  .row__song, .row__note, .row__when { grid-column: 1; margin: 0; overflow-wrap: anywhere; }
+  .row__note { color: var(--purple); }
+  .row__when { font-size: .92rem; color: var(--soft); }
+  .row__x { grid-column: 2; grid-row: 1; font: 400 1rem/1 var(--hand); color: var(--soft); background: none; border: 1.5px dashed var(--soft); border-radius: 999px; padding: .35rem .6rem .2rem; cursor: pointer; }
+  .row__x:hover { color: #a3123f; border-color: #a3123f; }
+  .row--told { border-style: dashed; background: none; }
+  .empty { margin: 0; color: var(--soft); }
+</style>
+</head>
+<body>
+<main class="page gl">
+  <h1>Guest list</h1>
+  <p class="gl__sub">Joyce’s 25th · just for you <span class="e">👀</span></p>
+
+  <section class="card gate" id="gate" hidden>
+    <label for="key"><b>Paste your list key</b><br><small>It’s the part after <code>#k=</code> in the link you were sent.</small></label>
+    <input id="key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <p class="msg" id="gate-msg" hidden></p>
+    <button class="btn" type="button" id="gate-go">Open the list</button>
+  </section>
+
+  <p class="gl__sub" id="loading">Fetching the list…</p>
+
+  <div id="board" hidden>
+    <section class="card totals">
+      <div class="totals__n" id="t-going">0</div>
+      <p class="totals__l">going so far</p>
+      <p class="totals__split"><b id="t-here">0</b> signed up on the page + <b id="t-base">0</b> told you directly</p>
+      <p class="totals__other" id="t-other"></p>
+    </section>
+
+    <div class="bar">
+      <button class="btn btn--alt" type="button" id="b-base">Change “told me directly”</button>
+      <button class="btn btn--alt" type="button" id="b-copy">Copy the list</button>
+      <button class="btn btn--alt" type="button" id="b-refresh">Refresh</button>
+    </div>
+    <p class="msg" id="board-msg" hidden></p>
+
+    <section class="group"><h2>Going <span id="c-yes"></span></h2><ul class="rows" id="l-yes"></ul></section>
+    <section class="group"><h2>Maybe <span id="c-maybe"></span></h2><ul class="rows" id="l-maybe"></ul></section>
+    <section class="group"><h2>Can’t make it <span id="c-no"></span></h2><ul class="rows" id="l-no"></ul></section>
+  </div>
+</main>
+
+<script src="../config.js"></script>
+<script>
+(() => {
+  "use strict";
+  const API = ((window.PARTY || {}).rsvp || {}).endpoint || "";
+  const base = API.replace(/\/+$/, "");
+  const KEY = "joyce25-listkey";
+  const $ = (id) => document.getElementById(id);
+  let key = "";
+  let data = null;
+
+  const remember = (k) => { try { localStorage.setItem(KEY, k); } catch (e) { /* private mode */ } };
+  const recall = () => { try { return localStorage.getItem(KEY) || ""; } catch (e) { return ""; } };
+  const say = (id, text) => { const el = $(id); el.textContent = text || ""; el.hidden = !text; };
+
+  async function api(path, opts = {}) {
+    const res = await fetch(base + path, { ...opts, headers: { Authorization: "Bearer " + key, ...(opts.body ? { "Content-Type": "application/json" } : {}) } });
+    const out = await res.json().catch(() => ({ ok: false, error: "Unexpected reply." }));
+    if (res.status === 401) throw Object.assign(new Error("key"), { wrongKey: true });
+    if (!out.ok) throw new Error(out.error || "That didn't work.");
+    return out;
+  }
+
+  const when = (ms) => ms ? new Date(ms).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+
+  function row(g) {
+    const li = document.createElement("li");
+    li.className = "row";
+    const name = document.createElement("div");
+    name.className = "row__name";
+    name.textContent = g.name;
+    li.appendChild(name);
+    const x = document.createElement("button");
+    x.className = "row__x";
+    x.type = "button";
+    x.textContent = "remove";
+    x.setAttribute("aria-label", "Remove " + g.name);
+    x.addEventListener("click", () => remove(g));
+    li.appendChild(x);
+    if (g.song) { const p = document.createElement("p"); p.className = "row__song"; p.textContent = "🎤 " + g.song; li.appendChild(p); }
+    if (g.note) { const p = document.createElement("p"); p.className = "row__note"; p.textContent = "💌 " + g.note; li.appendChild(p); }
+    const t = document.createElement("p");
+    t.className = "row__when";
+    t.textContent = when(g.updated || g.at);
+    li.appendChild(t);
+    return li;
+  }
+
+  function fillGroup(listId, countId, guests, emptyText, extra) {
+    const ul = $(listId);
+    ul.textContent = "";
+    guests.forEach((g) => ul.appendChild(row(g)));
+    if (extra) ul.appendChild(extra);
+    if (!guests.length && !extra) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = emptyText;
+      ul.appendChild(li);
+    }
+    $(countId).textContent = "(" + guests.length + ")";
+  }
+
+  function render() {
+    const by = (s) => data.guests.filter((g) => g.status === s);
+    const yes = by("yes"), maybe = by("maybe"), no = by("no");
+    $("t-going").textContent = data.base + yes.length;
+    $("t-here").textContent = yes.length;
+    $("t-base").textContent = data.base;
+    $("t-other").textContent = maybe.length + " maybe · " + no.length + " can’t make it";
+    let told = null;
+    if (data.base > 0) {
+      told = document.createElement("li");
+      told.className = "row row--told";
+      told.textContent = "+ " + data.base + " who told you directly (not listed by name)";
+    }
+    fillGroup("l-yes", "c-yes", yes, "Nobody yet.", told);
+    $("c-yes").textContent = "(" + (data.base + yes.length) + ")";
+    fillGroup("l-maybe", "c-maybe", maybe, "Nobody.");
+    fillGroup("l-no", "c-no", no, "Nobody.");
+    $("loading").hidden = true;
+    $("gate").hidden = true;
+    $("board").hidden = false;
+  }
+
+  async function load() {
+    say("board-msg", "");
+    try {
+      data = await api("/admin");
+      remember(key);
+      render();
+    } catch (e) {
+      $("loading").hidden = true;
+      if (e.wrongKey) {
+        $("board").hidden = true;
+        $("gate").hidden = false;
+        say("gate-msg", key ? "That key didn’t work. Check the link you were sent." : "");
+      } else if (data) say("board-msg", "Couldn’t refresh. Check your signal and try again.");
+      else { $("gate").hidden = false; say("gate-msg", "Couldn’t reach the list. Check your signal and try again."); }
+    }
+  }
+
+  async function remove(g) {
+    if (!confirm("Remove " + g.name + " from the list?")) return;
+    try { data = await api("/admin/guest?id=" + encodeURIComponent(g.id), { method: "DELETE" }); render(); }
+    catch (e) { say("board-msg", "Couldn’t remove that. Try again."); }
+  }
+
+  $("b-base").addEventListener("click", async () => {
+    const answer = prompt("How many people have told you directly that they’re coming (and haven’t signed up on the page)?", String(data.base));
+    if (answer === null) return;
+    const n = parseInt(answer, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 500) return say("board-msg", "That needs to be a number, like 15.");
+    try { data = await api("/admin/base", { method: "POST", body: JSON.stringify({ base: n }) }); say("board-msg", ""); render(); }
+    catch (e) { say("board-msg", "Couldn’t save that. Try again."); }
+  });
+
+  $("b-copy").addEventListener("click", async () => {
+    const line = (g) => "- " + g.name + (g.song ? " (🎤 " + g.song + ")" : "") + (g.note ? ": " + g.note : "");
+    const by = (s) => data.guests.filter((g) => g.status === s);
+    const text = [
+      "Joyce's 25th: " + (data.base + by("yes").length) + " going",
+      "", "GOING", ...by("yes").map(line), data.base ? "+ " + data.base + " who told Joyce directly" : "",
+      "", "MAYBE", ...by("maybe").map(line),
+      "", "CAN'T MAKE IT", ...by("no").map(line),
+    ].filter((l, i, a) => !(l === "" && a[i - 1] === "")).join("\n");
+    try { await navigator.clipboard.writeText(text); say("board-msg", "Copied ✓"); setTimeout(() => say("board-msg", ""), 1800); }
+    catch (e) { say("board-msg", "Couldn’t copy on this browser."); }
+  });
+
+  $("b-refresh").addEventListener("click", load);
+  $("gate-go").addEventListener("click", () => { key = $("key").value.trim().replace(/^.*#k=/, ""); $("loading").hidden = false; load(); });
+  $("key").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gate-go").click(); });
+
+  if (!base) {
+    $("loading").textContent = "The sign-up list isn’t connected yet.";
+    return;
+  }
+  const fromLink = (location.hash.match(/k=([^&]+)/) || [])[1];
+  key = fromLink ? decodeURIComponent(fromLink) : recall();
+  if (key) load(); else { $("loading").hidden = true; $("gate").hidden = false; }
+})();
+</script>
+</body>
+</html>

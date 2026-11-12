@@ -112,6 +112,24 @@
     $$(".rhead .rline").forEach((l) => l.classList.add("go"));
   }
 
+  /* ---------- how many are going ---------- */
+  const burstEl = $(".burst__in");
+  if (burstEl) {
+    const pts = [];
+    for (let i = 0; i < 28; i++) {
+      const rad = i % 2 ? 41 : 50;
+      const a = (i / 28) * Math.PI * 2;
+      pts.push((50 + rad * Math.cos(a)).toFixed(1) + "% " + (50 + rad * Math.sin(a)).toFixed(1) + "%");
+    }
+    burstEl.style.setProperty("--burst", "polygon(" + pts.join(",") + ")");
+  }
+  let baseGoing = Number(RSVP.baseGoing) || 0;
+  function setGoing(n) {
+    $$("[data-going]").forEach((el) => { el.textContent = String(n); });
+    $$("[data-going-wrap]").forEach((el) => { el.hidden = !(n > 0); });
+  }
+  setGoing(baseGoing);
+
   /* ---------- countdown ---------- */
   const start = new Date(P.start);
   const end = new Date(P.end);
@@ -316,6 +334,7 @@
     const res = await fetch(RSVP.endpoint, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(d) });
     const out = await res.json();
     if (!out.ok) throw new Error(out.error || "Could not save");
+    return out;
   }
 
   if (form) {
@@ -341,8 +360,9 @@
 
       if (useSheet) {
         sendBtn.disabled = true;
+        let out;
         try {
-          await saveToSheet(d);
+          out = await saveToSheet(d);
         } catch (err) {
           sendBtn.disabled = false;
           return fail("That didn't send. Check your signal and try again, or message Joyce directly.");
@@ -350,7 +370,8 @@
         sendBtn.disabled = false;
         store.set(d);
         showDone(d, true);
-        loadGuests();
+        // the reply carries the fresh list; fall back to asking for it
+        if (out.guests) renderGuests(out); else loadGuests();
       } else {
         store.set(d);
         window.open(whatsappUrl(d), "_blank", "noopener");
@@ -375,34 +396,45 @@
   }
 
   /* ---------- who's coming (needs the sign-up sheet) ---------- */
+  function renderGuests(out) {
+    if (typeof out.base === "number" && out.base >= 0) baseGoing = out.base;
+    const all = (out.guests || []).filter((g) => g && g.name && (g.status === "yes" || g.status === "maybe"));
+    const yes = all.filter((g) => g.status === "yes");
+    const maybe = all.filter((g) => g.status === "maybe");
+    const going = baseGoing + yes.length;
+    setGoing(going);
+
+    const list = $("#guests-list");
+    list.textContent = "";
+    const rand = seeded(7);
+    const tints = ["#f7c9d6", "#cdbbe6", "#f6d2bc", "#f3d98a", "#dfe3fb", "#fff"];
+    yes.concat(maybe).forEach((g, i) => {
+      const li = document.createElement("li");
+      li.className = "guest" + (g.status === "maybe" ? " guest--maybe" : "");
+      li.style.setProperty("--bg", tints[i % tints.length]);
+      li.style.setProperty("--r", ((rand() - 0.5) * 6).toFixed(1) + "deg");
+      li.textContent = g.name + (g.status === "maybe" ? " (maybe)" : "");
+      if (g.song) {
+        const s = document.createElement("small");
+        s.textContent = "🎤 " + g.song;
+        li.appendChild(s);
+      }
+      list.appendChild(li);
+    });
+    if (baseGoing > 0) {
+      const more = document.createElement("li");
+      more.className = "guest guest--more";
+      more.textContent = (all.length ? "+ " : "") + baseGoing + " who told Joyce directly";
+      list.appendChild(more);
+    }
+    $("#guests-count").textContent = going + " going" + (maybe.length ? " · " + maybe.length + " maybe" : "") + " 🪩";
+    $("#guests").hidden = !(all.length || baseGoing > 0);
+  }
   async function loadGuests() {
     if (!useSheet) return;
     try {
-      const out = await (await fetch(RSVP.endpoint)).json();
-      const all = (out.guests || []).filter((g) => g && g.name && (g.status === "yes" || g.status === "maybe"));
-      if (!all.length) return;
-      const yes = all.filter((g) => g.status === "yes");
-      const maybe = all.filter((g) => g.status === "maybe");
-      const list = $("#guests-list");
-      list.textContent = "";
-      const rand = seeded(7);
-      const tints = ["#f7c9d6", "#cdbbe6", "#f6d2bc", "#f3d98a", "#dfe3fb", "#fff"];
-      yes.concat(maybe).forEach((g, i) => {
-        const li = document.createElement("li");
-        li.className = "guest" + (g.status === "maybe" ? " guest--maybe" : "");
-        li.style.setProperty("--bg", tints[i % tints.length]);
-        li.style.setProperty("--r", ((rand() - 0.5) * 6).toFixed(1) + "deg");
-        li.textContent = g.name + (g.status === "maybe" ? " (maybe)" : "");
-        if (g.song) {
-          const s = document.createElement("small");
-          s.textContent = "🎤 " + g.song;
-          li.appendChild(s);
-        }
-        list.appendChild(li);
-      });
-      $("#guests-count").textContent = yes.length + " coming" + (maybe.length ? " · " + maybe.length + " maybe" : "") + " 🪩";
-      $("#guests").hidden = false;
-    } catch (e) { /* the list is a nice-to-have */ }
+      renderGuests(await (await fetch(RSVP.endpoint)).json());
+    } catch (e) { /* the page still shows the last known count */ }
   }
   loadGuests();
 })();
