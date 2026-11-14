@@ -143,6 +143,24 @@ dl.rep dt { color: var(--muted); }
 dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+.name-row { display: flex; gap: 8px; margin-top: 12px; }
+.name-row input { flex: 1 1 auto; min-width: 0; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); font-size: 15px; }
+.name-row + .row { margin-top: 8px; }
+.saves { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.card { display: flex; flex-direction: column; min-width: 0; border-radius: 10px; border: 1px solid var(--line); background: var(--raise); overflow: hidden; }
+.card.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card .open { display: block; width: 100%; padding: 0; border: 0; background: #070606; cursor: pointer; text-align: left; }
+.card .open img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.card .open .noimg { display: grid; place-items: center; aspect-ratio: 3 / 4; color: var(--muted); font-size: 12px; }
+.card .meta { padding: 8px 10px 2px; min-width: 0; }
+.card .nm { margin: 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .sub { margin: 1px 0 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: #2a1219; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+.card .acts { display: flex; gap: 4px; padding: 6px 8px 8px; margin-top: auto; }
+.card .acts .btn { flex: 1 1 0; padding: 6px 4px; font-size: 12.5px; }
+.card .acts .btn.danger { color: #f3b0b0; }
+.card .acts .btn.armed { background: var(--crit); border-color: var(--crit); color: #fff; }
+.empty { margin: 14px 0 0; padding: 18px 14px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 13.5px; text-align: center; }
 @media (min-width: 860px) {
   #app { grid-template-columns: minmax(0, 1fr) 410px; grid-template-rows: auto minmax(0, 1fr); }
   #top { grid-column: 1 / -1; }
@@ -187,6 +205,7 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
       <button type="button" class="chip" data-view="lean" aria-pressed="false">Overhang map</button>
     </div>
     <div class="ov br">
+      <button type="button" class="icon-btn" id="b-save" aria-label="Save this vase"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 3h9a.5.5 0 0 1 .5.5V17l-5-3.4L5 17V3.5a.5.5 0 0 1 .5-.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></button>
       <button type="button" class="icon-btn" id="b-home" aria-label="Reset the view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 10a5.8 5.8 0 1 0 1.9-4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5.6 2.6v3.6h3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
     <p class="toast" id="toast" role="status" hidden></p>
@@ -1031,6 +1050,7 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
   const LOOK0 = { view: "petg", light: "studio", tint: "clear", clarity: 75, lines: true, spin: false };
   const OUT0 = { solid: true, shell: false, step: true, detail: "fine" };
 
+  let curId = null;                                                       // the saved vase now open, if any
   let P = Object.assign({}, DEF), look = Object.assign({}, LOOK0), out = Object.assign({}, OUT0), tab = "size";
   let live = null, fine = null, fineKey = "", viewer = null, DL;          // DL: undefined while pending, null when this view has no downloads
   const CTL = [];
@@ -1105,7 +1125,8 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
       { t: "switch", o: "out", k: "step", label: "STEP", sub: "The same solid as smooth B-spline surfaces, for CAD and milling." },
       { t: "seg", o: "out", k: "detail", label: "Detail", opts: [["fine", "Standard"], ["light", "Light"]], hint: () => detailHint() }
     ] }], custom: exportExtras },
-    { id: "report", label: "Report", custom: p => p.insertAdjacentHTML("beforeend", `<div id="report"></div>`) }
+    { id: "report", label: "Report", custom: p => p.insertAdjacentHTML("beforeend", `<div id="report"></div>`) },
+    { id: "saved", label: "Saved", custom: savedPane }
   ];
 
   function detailHint() {
@@ -1213,7 +1234,14 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
     $("#b-load").addEventListener("click", () => { $("#load-box").hidden = false; $("#t-json").focus(); });
     $("#b-cancel").addEventListener("click", () => { $("#load-box").hidden = true; });
     $("#b-apply").addEventListener("click", loadParams);
-    $("#b-reset").addEventListener("click", () => { P = Object.assign({}, DEF); refreshAll(); requestLive(); persist(); say("#par-msg", "Back to the Lei Moon Jar as designed."); });
+    $("#b-save").addEventListener("click", () => { openTab("saved"); if (window.innerWidth < 860) $("#side").scrollIntoView({ behavior: "smooth", block: "start" }); toast(curId ? "Save changes, or save it as a new vase." : "Name it, then Save."); });
+    $("#b-sv-new").addEventListener("click", () => saveVase(false));
+    $("#b-sv-upd").addEventListener("click", () => saveVase(true));
+    $("#sv-name").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); saveVase(!!curId); } });
+    $("#b-sv-backup").addEventListener("click", backupVases);
+    $("#b-sv-restore").addEventListener("click", () => $("#sv-file").click());
+    $("#sv-file").addEventListener("change", restoreVases);
+    $("#b-reset").addEventListener("click", () => { curId = null; renderSaved(); P = Object.assign({}, DEF); refreshAll(); requestLive(); persist(); say("#par-msg", "Back to the Lei Moon Jar as designed."); });
   }
 
   function viewExtras(p) {
@@ -1460,8 +1488,159 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
     let o; try { o = JSON.parse($("#t-json").value); } catch (e) { say("#par-msg", "That isn't valid JSON. Paste parameters.json or copied parameters."); return; }
     const src = o && o.params ? o.params : o, n = sanitizeInto(P, src);
     if (o && o.look) Object.assign(look, pick(o.look, LOOK0));
+    curId = null; renderSaved();
     $("#load-box").hidden = true; refreshAll(); applyLook(); requestLive(); persist();
     say("#par-msg", n ? `Loaded ${n} settings.` : "No settings found in that text.");
+  }
+
+  /* ======================= saved vases ======================= */
+  // Kept in this browser (localStorage). A share link carries one design in the URL, so it opens on any device.
+  const SAVES = "lei-moon-jar.saved.v1";
+  function readSaves() { try { const a = JSON.parse(localStorage.getItem(SAVES) || "[]"); return Array.isArray(a) ? a.filter(v => v && v.id && v.P) : []; } catch (e) { return []; } }
+  function writeSaves(a) { try { localStorage.setItem(SAVES, JSON.stringify(a)); return true; } catch (e) { return false; } }
+  const dimsNow = () => { const M = (fine && fineKey === keyOf(P) ? fine : live || {}).M; return M ? `Ø${f(M.widest, 0)} × ${f(M.height, 0)} mm` : `Ø${P.max_d} × ${P.height} mm`; };
+  const when = t => { try { const d = new Date(t), o = { day: "numeric", month: "short" }; if (d.getFullYear() !== new Date().getFullYear()) o.year = "numeric"; return d.toLocaleDateString(undefined, o); } catch (e) { return ""; } };
+  const nextName = () => { const a = readSaves(); let n = a.length + 1; while (a.some(v => v.name === `Vase ${n}`)) n++; return `Vase ${n}`; };
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function savedPane(p) {
+    p.insertAdjacentHTML("beforeend",
+      `<p class="intro">Keep the designs you like and come back to them. They're saved in this browser on this device. Share links work anywhere.</p>` +
+      `<div class="name-row"><label class="sr" for="sv-name">Name</label><input id="sv-name" type="text" maxlength="60" autocomplete="off" enterkeyhint="done" placeholder="Name this vase"></div>` +
+      `<div class="row"><button type="button" class="btn primary" id="b-sv-upd" hidden>Save changes</button><button type="button" class="btn primary" id="b-sv-new">Save</button></div>` +
+      `<p class="msg" id="sv-msg" aria-live="polite"></p>` +
+      `<ul class="saves" id="sv-list"></ul>` +
+      `<div class="group"><h3>Back up</h3><div class="row"><button type="button" class="btn" id="b-sv-backup">Download all (.json)</button><button type="button" class="btn" id="b-sv-restore">Restore from file…</button></div>` +
+      `<input type="file" id="sv-file" accept="application/json,.json" hidden><p class="fine">Use a backup to move every saved vase to another browser or device.</p></div>`);
+  }
+
+  function renderSaved() {
+    const list = $("#sv-list"); if (!list) return;
+    const a = readSaves().sort((x, y) => (y.updated || 0) - (x.updated || 0)), cur = a.find(v => v.id === curId);
+    if (curId && !cur) curId = null;
+    const nameBox = $("#sv-name");
+    if (document.activeElement !== nameBox) { nameBox.value = cur ? cur.name : ""; nameBox.placeholder = cur ? "Name" : nextName(); }
+    $("#b-sv-upd").hidden = !cur;
+    $("#b-sv-new").textContent = cur ? "Save as new" : "Save";
+    $("#b-sv-new").classList.toggle("primary", !cur);
+    $("#b-sv-backup").disabled = !a.length;
+    list.textContent = "";
+    if (!a.length) { const e = document.createElement("li"); e.className = "empty"; e.textContent = "No saved vases yet."; list.appendChild(e); return; }
+    a.forEach(v => {
+      const li = document.createElement("li"); li.className = "card" + (v.id === curId ? " current" : "");
+      const open = document.createElement("button"); open.type = "button"; open.className = "open"; open.setAttribute("aria-label", `Open ${v.name}`);
+      if (v.thumb && /^data:image\/(jpeg|png|webp);base64,/.test(v.thumb)) { const im = document.createElement("img"); im.src = v.thumb; im.alt = ""; im.loading = "lazy"; open.appendChild(im); }
+      else { const d = document.createElement("span"); d.className = "noimg"; d.textContent = "No picture"; open.appendChild(d); }
+      open.addEventListener("click", () => openVase(v.id));
+      const meta = document.createElement("div"); meta.className = "meta";
+      const nm = document.createElement("p"); nm.className = "nm"; nm.textContent = v.name; nm.title = v.name;
+      if (v.id === curId) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "Open"; nm.appendChild(t); }
+      const sub = document.createElement("p"); sub.className = "sub"; sub.textContent = `${v.dims || ""}${v.dims ? " · " : ""}${when(v.updated)}`;
+      meta.append(nm, sub);
+      const acts = document.createElement("div"); acts.className = "acts";
+      const sh = document.createElement("button"); sh.type = "button"; sh.className = "btn"; sh.textContent = "Share";
+      sh.addEventListener("click", () => shareVase(v));
+      const del = document.createElement("button"); del.type = "button"; del.className = "btn danger"; del.textContent = "Delete";
+      let armT = 0;
+      del.addEventListener("click", () => {
+        if (!del.classList.contains("armed")) { del.classList.add("armed"); del.textContent = "Sure?"; armT = setTimeout(() => { del.classList.remove("armed"); del.textContent = "Delete"; }, 3000); return; }
+        clearTimeout(armT); deleteVase(v.id);
+      });
+      acts.append(sh, del);
+      li.append(open, meta, acts); list.appendChild(li);
+    });
+  }
+
+  function waitLive(ms = 4000) {
+    const t0 = Date.now();
+    return new Promise(res => (function poll() { if (!liveBusy || Date.now() - t0 > ms) res(); else setTimeout(poll, 60); })());
+  }
+  async function thumbNow() {
+    if (!viewer) return null;
+    await waitLive();
+    try { return viewer.snapshot(240, 320, null, "").toDataURL("image/jpeg", 0.78); } catch (e) { return null; }
+  }
+
+  async function saveVase(update) {
+    const a = readSaves(), name = ($("#sv-name").value || "").trim().slice(0, 60) || (update && a.find(v => v.id === curId) || {}).name || nextName();
+    const btns = $$("#b-sv-new, #b-sv-upd"); btns.forEach(b => { b.disabled = true; });
+    try {
+      const thumb = await thumbNow(), now = Date.now();
+      const rec = { id: update && curId ? curId : newId(), name, P: Object.assign({}, P), look: Object.assign({}, look), thumb, dims: dimsNow(), updated: now };
+      const i = a.findIndex(v => v.id === rec.id);
+      if (i >= 0) { rec.created = a[i].created || now; a[i] = rec; } else { rec.created = now; a.push(rec); }
+      if (!writeSaves(a)) {                                                   // full: try once more without the picture
+        rec.thumb = null; if (!writeSaves(a)) { say("#sv-msg", "Couldn't save: this browser's storage is full or turned off. Download a backup and delete some vases."); return; }
+      }
+      curId = rec.id; persist(); $("#sv-name").blur(); renderSaved();
+      say("#sv-msg", i >= 0 ? `Saved changes to “${name}”.` : `Saved “${name}”.`);
+    } finally { btns.forEach(b => { b.disabled = false; }); }
+  }
+
+  function applyDesign(src, lk) {
+    P = Object.assign({}, DEF); sanitizeInto(P, src);
+    if (lk) Object.assign(look, pick(lk, LOOK0));
+    refreshAll(); applyLook(); requestLive(); persist();
+  }
+  function openVase(id) {
+    const v = readSaves().find(x => x.id === id); if (!v) { renderSaved(); return; }
+    curId = v.id; applyDesign(v.P, v.look); renderSaved();
+    if (viewer) viewer.preset("home");
+    say("#sv-msg", ""); toast(`Opened “${v.name}”.`);
+  }
+  function deleteVase(id) {
+    const a = readSaves(), v = a.find(x => x.id === id); if (!v) return;
+    writeSaves(a.filter(x => x.id !== id));
+    if (curId === id) { curId = null; persist(); }
+    renderSaved(); say("#sv-msg", `Deleted “${v.name}”.`);
+  }
+
+  // share links: #v=<base64url of JSON>, holding only the settings that differ from the Lei Moon Jar
+  function b64urlEncode(str) { return btoa(unescape(encodeURIComponent(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function b64urlDecode(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return decodeURIComponent(escape(atob(s))); }
+  function linkFor(v) {
+    const d = {}; Object.keys(DEF).forEach(k => { if (JSON.stringify(v.P[k]) !== JSON.stringify(DEF[k]) && v.P[k] !== undefined) d[k] = v.P[k]; });
+    const lk = {}; Object.keys(LOOK0).forEach(k => { if (v.look && v.look[k] !== undefined && v.look[k] !== LOOK0[k]) lk[k] = v.look[k]; });
+    const o = { n: v.name, p: d }; if (Object.keys(lk).length) o.l = lk;
+    return location.origin + location.pathname + "#v=" + b64urlEncode(JSON.stringify(o));
+  }
+  async function shareVase(v) {
+    const url = linkFor(v);
+    if (navigator.share && window.matchMedia && window.matchMedia("(pointer: coarse)").matches) {
+      try { await navigator.share({ title: `${v.name} · Lei Moon Jar`, url }); return; } catch (e) { if (e && e.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(url); say("#sv-msg", `Link to “${v.name}” copied.`); }
+    catch (e) { window.prompt("Copy this link:", url); }
+  }
+  function readShared() {
+    const m = /[#&]v=([A-Za-z0-9_-]+)/.exec(location.hash || ""); if (!m) return null;
+    try { const o = JSON.parse(b64urlDecode(m[1])); return o && typeof o === "object" && o.p && typeof o.p === "object" ? o : null; } catch (e) { return null; }
+  }
+
+  async function backupVases() {
+    const a = readSaves(); if (!a.length) return;
+    const blob = new Blob([JSON.stringify({ tool: "Lei Moon Jar tool", kind: "saved-vases", version: 1, vases: a }, null, 1)], { type: "application/json" });
+    say("#sv-msg", await offer(`lei-moon-jar-saved-${new Date().toISOString().slice(0, 10)}.json`, blob));
+  }
+  function restoreVases(e) {
+    const file = e.target.files && e.target.files[0]; e.target.value = ""; if (!file) return;
+    file.text().then(txt => {
+      let o; try { o = JSON.parse(txt); } catch (err) { say("#sv-msg", "That file isn't a Lei Moon Jar backup."); return; }
+      const inc = Array.isArray(o) ? o : o && Array.isArray(o.vases) ? o.vases : null;
+      if (!inc) { say("#sv-msg", "That file isn't a Lei Moon Jar backup."); return; }
+      const a = readSaves(), ids = new Set(a.map(v => v.id)); let n = 0;
+      inc.forEach(v => {
+        if (!v || typeof v !== "object" || !v.P || typeof v.P !== "object") return;
+        const clean = Object.assign({}, DEF); sanitizeInto(clean, v.P);
+        const id = typeof v.id === "string" && v.id.length < 40 ? v.id : newId(); if (ids.has(id)) return;
+        a.push({ id, name: String(v.name || "Vase").slice(0, 60), P: clean, look: pick(v.look, LOOK0),
+          thumb: typeof v.thumb === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(v.thumb) ? v.thumb : null,
+          dims: typeof v.dims === "string" ? v.dims.slice(0, 40) : "", created: +v.created || Date.now(), updated: +v.updated || Date.now() });
+        ids.add(id); n++;
+      });
+      if (!writeSaves(a)) { say("#sv-msg", "Couldn't restore: this browser's storage is full or turned off."); return; }
+      renderSaved(); say("#sv-msg", n ? `Restored ${n} vase${n === 1 ? "" : "s"}.` : "Nothing new in that backup.");
+    }, () => say("#sv-msg", "Couldn't read that file."));
   }
 
   /* ======================= state ======================= */
@@ -1484,7 +1663,7 @@ dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
   function pick(src, base) { const o = {}; if (!src) return o; Object.keys(base).forEach(k => { if (src[k] !== undefined && typeof src[k] === typeof base[k]) o[k] = src[k]; }); return o; }
   const STORE = "lei-moon-jar.v2";
   let saveT = 0;
-  function persist() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ P, look, out, tab })); } catch (e) { /* private mode */ } }, 300); }
+  function persist() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ P, look, out, tab, cur: curId })); } catch (e) { /* private mode */ } }, 300); }
   function restore() { try { return JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { return null; } }
 
   /* ======================= small UI helpers ======================= */
@@ -1779,10 +1958,24 @@ void main() {
       sanitizeInto(P, saved.P);
       Object.assign(look, pick(saved.look, LOOK0)); Object.assign(out, pick(saved.out, OUT0));
       if (typeof saved.tab === "string") tab = saved.tab;
+      if (typeof saved.cur === "string") curId = saved.cur;
+    }
+    const shared = readShared();
+    if (shared) {
+      P = Object.assign({}, DEF); sanitizeInto(P, shared.p);
+      if (shared.l) Object.assign(look, pick(shared.l, LOOK0));
+      curId = null;
+      try { history.replaceState(null, "", location.pathname + location.search); } catch (e) { /* ok */ }
     }
     buildUI();
     viewer = makeViewer();
-    refreshAll(); applyLook(); openTab(tab); requestLive(); initDownloads();
+    refreshAll(); applyLook(); openTab(tab); requestLive(); initDownloads(); renderSaved();
+    if (shared) {
+      const nm = typeof shared.n === "string" ? shared.n.slice(0, 60) : "";
+      if (nm) $("#sv-name").value = nm;
+      toast(`Opened a shared vase${nm ? `: “${nm}”` : ""}. Save it to keep it.`);
+      persist();
+    }
     try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ P, look, out, tab })); } catch (e) { /* not in the viewer */ }
   }
   try {
