@@ -1,0 +1,1794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Lei Moon Jar</title>
+<meta name="description" content="Parametric moon jar maker for large-format PETG printing: shape it, check printability, export STL and STEP.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* One visual world: a dark photo studio, where clear PETG reads the way it does under real lights.
+     Phone: the jar on top, checks and settings below it. Wide screens: the jar left, settings right. */
+  color-scheme: dark;
+  --bg: #0f0e0d;
+  --surface: #171615;
+  --raise: #23211f;
+  --line: #34312d;
+  --text: #f3eee6;
+  --muted: #a69f94;
+  --accent: #f0a3b8;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --crit: #d03b3b;
+  --display: "Gowun Batang", "Nanum Myeongjo", Georgia, serif;
+  --body: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 400 15px/1.45 var(--body); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
+button, input, textarea { font: inherit; color: inherit; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+#app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr) minmax(270px, 1fr); }
+#top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 16px 9px; border-bottom: 1px solid var(--line); background: var(--bg); }
+h1 { margin: 0; font: 700 21px/1.1 var(--display); letter-spacing: 0.01em; text-wrap: balance; }
+h1 .ko { font-size: 0.7em; color: var(--muted); margin-left: 8px; letter-spacing: 0.04em; }
+.dims { margin: 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+#stage { position: relative; min-height: 0; overflow: hidden; background: #070606; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+#view:active { cursor: grabbing; }
+#view:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.gl-msg { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; color: var(--muted); }
+.ov { position: absolute; display: flex; gap: 6px; align-items: center; }
+.ov.tl { top: 10px; left: 12px; }
+.ov.tr { top: 10px; right: 12px; }
+.ov.bl { bottom: 12px; left: 12px; }
+.ov.br { bottom: 12px; right: 12px; }
+#hint { font-size: 12.5px; color: var(--muted); transition: opacity .4s; pointer-events: none; }
+#hint.gone { opacity: 0; }
+.chip { font-weight: 500; font-size: 13px; line-height: 1; padding: 8px 12px; border-radius: 999px; border: 1px solid var(--line); background: rgba(23, 22, 21, 0.78); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 13.5px; line-height: 1; padding: 7px 11px 7px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(23, 22, 21, 0.86); cursor: pointer; }
+.pill .ic { display: inline-flex; width: 16px; height: 16px; }
+.pill .ic svg, .st svg { width: 100%; height: 100%; display: block; }
+.pill[data-state="good"] .ic { color: var(--good); }
+.pill[data-state="warn"] .ic { color: var(--warn); }
+.pill[data-state="fail"] .ic { color: var(--crit); }
+.pill[data-state="checking"] { color: var(--muted); }
+.spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.icon-btn { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--line); background: rgba(23, 22, 21, 0.78); cursor: pointer; padding: 0; }
+.icon-btn svg { width: 18px; height: 18px; }
+.legend { position: absolute; left: 12px; top: 10px; width: min(196px, calc(100% - 170px)); min-width: 150px; padding: 7px 9px 6px; border-radius: 8px; background: rgba(15, 14, 13, 0.82); border: 1px solid var(--line); }
+.legend p { margin: 0 0 5px; font-size: 11.5px; color: var(--muted); }
+.legend .bar { height: 7px; border-radius: 4px; background: linear-gradient(to right, #184f95, #256abf, #3987e5, #6da7ec, #9ec5f4, #cde2fb); }
+.legend .ticks { position: relative; height: 0; }
+.legend .ticks span { position: absolute; top: 4px; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.legend .ticks span:first-child { transform: none; }
+.legend .ticks span:last-child { transform: translateX(-100%); color: var(--text); }
+.legend .over { display: flex; align-items: center; gap: 6px; margin-top: 19px; font-size: 11px; color: var(--muted); }
+.legend .over i { width: 10px; height: 10px; border-radius: 2px; background: var(--crit); }
+.toast { position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 9px 14px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 13.5px; font-weight: 500; box-shadow: 0 6px 24px rgba(0, 0, 0, .5); }
+
+#side { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-top: 1px solid var(--line); }
+.kpis { flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.85fr) minmax(0, 0.75fr); gap: 4px 10px; margin: 0; padding: 9px 16px 8px; border-bottom: 1px solid var(--line); }
+.kpis div { min-width: 0; }
+.kpis dt { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpis dd { margin: 1px 0 0; font-size: 15.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpis dd small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.kpis.stale dd { color: var(--muted); }
+.tabs { flex: 0 0 auto; display: flex; overflow-x: auto; scrollbar-width: none; padding: 0 6px; border-bottom: 1px solid var(--line); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; font-weight: 500; font-size: 14px; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 10px 10px; cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+#panes { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 2px 16px 28px; overscroll-behavior: contain; }
+.pane { max-width: 560px; }
+.intro { margin: 12px 0 4px; font-size: 13.5px; color: var(--muted); max-width: 62ch; }
+.group h3, #report h3 { margin: 18px 0 4px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ctl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding: 9px 0 6px; border-bottom: 1px solid rgba(52, 49, 45, 0.55); }
+.ctl label { font-size: 14.5px; }
+.ctl.off { opacity: 0.4; }
+.num { display: flex; align-items: baseline; gap: 5px; justify-self: end; }
+.num input { width: 4.4em; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--raise); text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.num input::-webkit-outer-spin-button, .num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.unit { font-size: 12px; color: var(--muted); min-width: 1.5em; white-space: nowrap; }
+.ctl input[type=range] { grid-column: 1 / -1; width: 100%; height: 30px; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.ctl input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent) 0 var(--fill, 50%), var(--line) var(--fill, 50%) 100%); }
+.ctl input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border-radius: 50%; border: 0; background: var(--text); box-shadow: 0 1px 4px rgba(0, 0, 0, .55); }
+.ctl input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+.ctl input[type=range]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+.ctl input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--text); }
+.hint { grid-column: 1 / -1; margin: 0 0 2px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ctl-switch { grid-template-columns: minmax(0, 1fr) auto; padding: 11px 0; }
+.ctl-switch label { display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.ctl-switch .sub { font-size: 12.5px; color: var(--muted); }
+.ctl-switch input { appearance: none; -webkit-appearance: none; width: 44px; height: 26px; margin: 0; border-radius: 13px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
+.ctl-switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: var(--text); transition: transform .15s; }
+.ctl-switch input:checked { background: var(--accent); }
+.ctl-switch input:checked::after { transform: translateX(18px); background: #2a1219; }
+.ctl-seg { display: block; padding: 10px 0 8px; }
+.seg-label { margin: 0 0 7px; font-size: 14.5px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg button { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--raise); font-size: 13.5px; font-weight: 500; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.seg .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.ctl-seg .hint { margin-top: 7px; }
+.btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.wide { width: 100%; margin-top: 16px; padding: 12px 14px; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.msg { min-height: 1.2em; margin: 8px 0 0; font-size: 13px; color: var(--text); }
+.fine { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); max-width: 62ch; }
+textarea { width: 100%; margin-top: 10px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical; }
+.rep-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.verdict { margin: 0; font: 700 18px/1.25 var(--display); }
+.notes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.notes li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 9px; font-size: 13.5px; }
+.st { display: inline-flex; width: 16px; height: 16px; margin-top: 2px; }
+.st.ok, .st.good { color: var(--good); }
+.st.warn { color: var(--warn); }
+.st.fail { color: var(--crit); }
+.st.info { color: var(--muted); }
+dl.rep { margin: 0; }
+dl.rep .r { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 16px; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(52, 49, 45, 0.55); font-size: 13.5px; }
+dl.rep dt { color: var(--muted); }
+dl.rep dd { margin: 0; font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 860px) {
+  #app { grid-template-columns: minmax(0, 1fr) 410px; grid-template-rows: auto minmax(0, 1fr); }
+  #top { grid-column: 1 / -1; }
+  #stage { grid-column: 1; grid-row: 2; }
+  #side { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--line); }
+  .tabs { flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+}
+@media (max-width: 380px) {
+  .kpis { gap: 4px 6px; padding: 8px 12px; }
+  .kpis dd { font-size: 14px; }
+  .kpis dd small { font-size: 11px; }
+  #panes { padding: 2px 12px 28px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .spin { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <h1>Lei Moon Jar<span class="ko" lang="ko">달항아리</span></h1>
+    <p class="dims" id="dims">Ø300 × 450 mm</p>
+  </header>
+  <section id="stage" aria-label="3D view of the jar">
+    <canvas id="view" tabindex="0" aria-label="The jar. Drag to turn it, pinch or scroll to zoom, double-click to reset. Arrow keys also turn it."></canvas>
+    <p class="gl-msg" id="gl-msg" hidden></p>
+    <p class="ov tl" id="hint">Drag to turn · pinch to zoom</p>
+    <div class="ov tr">
+      <button type="button" class="btn small" id="b-fix" hidden>Fix it</button>
+      <button type="button" class="pill" id="pill" data-state="checking" aria-label="Printability. Open the report."><span class="ic" id="pill-ic"></span><span id="pill-text">Checking</span></button>
+    </div>
+    <div class="legend" id="legend" hidden>
+      <p>Wall lean from vertical</p>
+      <div class="bar"></div>
+      <div class="ticks" id="legend-ticks"></div>
+      <div class="over"><i></i>past the limit</div>
+    </div>
+    <div class="ov bl" role="group" aria-label="Show">
+      <button type="button" class="chip" data-view="petg" aria-pressed="true">Clear PETG</button>
+      <button type="button" class="chip" data-view="lean" aria-pressed="false">Overhang map</button>
+    </div>
+    <div class="ov br">
+      <button type="button" class="icon-btn" id="b-home" aria-label="Reset the view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.2 10a5.8 5.8 0 1 0 1.9-4.3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5.6 2.6v3.6h3.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+    <p class="toast" id="toast" role="status" hidden></p>
+  </section>
+  <aside id="side" aria-label="Checks and settings">
+    <dl class="kpis stale" id="kpis">
+      <div><dt>Steepest lean</dt><dd id="k-lean">–</dd></div>
+      <div><dt>Bead turn</dt><dd id="k-turn">–</dd></div>
+      <div><dt>Mass</dt><dd id="k-mass">–</dd></div>
+      <div><dt>Holds</dt><dd id="k-cap">–</dd></div>
+    </dl>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Settings"></nav>
+    <div id="panes"></div>
+  </aside>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script id="js-core">
+/* Lei Moon Jar: parametric generator. No DOM. Runs in a browser page and in Node.
+   Surface = turned profile + relief:  r(theta, z) = r0(z) + relief(theta, z)
+   All lengths mm, angles in degrees at the interface. */
+(function (root) {
+  "use strict";
+  var PI = Math.PI, TAU = 2 * Math.PI;
+
+  var DEFAULTS = {
+    // process
+    nozzle: 5, bead_w: 6, layer_h: 2, max_overhang_deg: 35, min_radius_beads: 2, base_layers: 10, print_speed: 40,
+    // material
+    density: 1.27,
+    // size and form
+    height: 450, max_d: 300, foot_pct: 62.7, neck_pct: 54, belly_pct: 48, neck_len_pct: 10.7,
+    foot_lean_deg: 30, shoulder_lean_deg: 34, lip_lean_deg: 28,
+    // lei of plumeria
+    n_flowers: 5, front_deg: 0, lei_rise: 4, lei_drape: 18, petal_pct: 29.3, petal_var_pct: 1.7,
+    petal_w: 0.33, petal_p: 1.40, petal_q: 0.85, swirl: 0.50, lead: 9, trail_ratio: 0.5, tip_drop: 0.12, throat_ratio: 0.5,
+    flower_twist_deg: [4, -7, 6, -5, 8, -3, 5, -6],
+    // echo lines
+    echo_pitch_beads: 4.5, echo_amp: 1.4, echo_rings_up: 3,
+    // seigaiha waves
+    wave_count: 0, wave_rings: 2, wave_amp: 1.3, wave_step: 0.5,
+    // softening, in bead widths / layer heights
+    soft_round_beads: 1.15, soft_up_layers: 1.75, soft_fine_beads: 0.55, soft_final_beads: 0.2,
+    // pouring lip
+    spout: 1, spout_deg: 0, spout_reach: 36, spout_lean_deg: 26, spout_nose_beads: 2.6, spout_width: 1
+  };
+
+  function smoothstep(a, b, x) { var t = (x - a) / (b - a); t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
+  function wrap(a) { a = (a + PI) % TAU; if (a < 0) a += TAU; return a - PI; }
+  function rad(d) { return d * PI / 180; }
+  function deg(r) { return r * 180 / PI; }
+
+  function gaussKernel(sigma) {
+    if (!(sigma > 0.05)) return new Float64Array([1]);
+    var R = Math.max(1, Math.ceil(3 * sigma)), k = new Float64Array(2 * R + 1), s = 0, i;
+    for (i = -R; i <= R; i++) { k[i + R] = Math.exp(-0.5 * i * i / (sigma * sigma)); s += k[i + R]; }
+    for (i = 0; i < k.length; i++) k[i] /= s;
+    return k;
+  }
+
+  /* Convex arc, vertical at the belly, leaning lean_deg where it ends: part of an ellipse. */
+  function halfMeridian(z, zb, rb, ze, re, leanDeg) {
+    var dr = rb - re, dzz = Math.abs(ze - zb), s = Math.tan(rad(leanDeg)), m = dr / (s * dzz);
+    var t = Math.abs(z - zb) / dzz; if (t > 1) t = 1;
+    if (m >= 0.5) return rb - dr * t * t;
+    var q = m / (1 - m), k = Math.sqrt(1 - q * q), a = dr / (1 - q);
+    return rb - a * (1 - Math.sqrt(1 - k * k * t * t));
+  }
+  function halfMeridianLean(rb, re, dzz, leanDeg) {
+    var dr = rb - re, m = dr / (Math.tan(rad(leanDeg)) * dzz);
+    return m >= 0.5 ? deg(Math.atan(2 * dr / dzz)) : leanDeg;
+  }
+
+  function derive(P) {
+    var D = {};
+    D.H = P.height; D.w = P.bead_w; D.h = P.layer_h;
+    D.foot_h = P.base_layers * P.layer_h;
+    D.r_foot = P.max_d * P.foot_pct / 200;
+    D.r_neck = P.max_d * P.neck_pct / 200;
+    D.belly_z = P.height * P.belly_pct / 100;
+    D.neck_len = P.height * P.neck_len_pct / 100;
+    D.shoulder_z = P.height - D.neck_len;
+    D.cap = P.max_overhang_deg;
+    D.lean_f = Math.min(P.foot_lean_deg, D.cap - 5);
+    D.lean_s = Math.min(P.shoulder_lean_deg, D.cap - 1);
+    D.lean_l = Math.min(P.lip_lean_deg, D.cap - 2);
+    D.petal_len = P.max_d * P.petal_pct / 100;
+    D.petal_var = P.max_d * P.petal_var_pct / 100;
+    D.trail = P.lead * P.trail_ratio;
+    D.throat = P.lead * P.throat_ratio;
+    D.k = P.height / 450;                       // scale for the few lengths that follow the height
+    return D;
+  }
+
+  function profile(P, D, z, rBelly) {
+    var NZ = z.length, dz = z[1] - z[0], j;
+    var sn = Math.tan(rad(D.lean_s)), sl = Math.tan(rad(D.lean_l)), L = D.H - D.shoulder_z;
+    var rsh = D.r_neck + L * sn * sn / (2 * (sn + sl));
+    var pad = Math.round(20 / dz), ext = new Float64Array(NZ + 2 * pad);
+    for (j = 0; j < NZ; j++) {
+      var zz = z[j], v;
+      if (zz < D.foot_h) v = D.r_foot;
+      else if (zz <= D.belly_z) v = halfMeridian(zz, D.belly_z, rBelly, D.foot_h, D.r_foot, D.lean_f);
+      else if (zz <= D.shoulder_z) v = halfMeridian(zz, D.belly_z, rBelly, D.shoulder_z, rsh, D.lean_s);
+      else { var tau = (zz - D.shoulder_z) / L; if (tau > 1) tau = 1; v = rsh + L * (-sn * tau + (sn + sl) * tau * tau / 2); }
+      ext[j + pad] = v;
+    }
+    for (j = 0; j < pad; j++) { ext[j] = ext[pad]; ext[NZ + pad + j] = ext[NZ + pad - 1] + sl * dz * (j + 1); }
+    var k = gaussKernel(2.5 / dz), R = (k.length - 1) / 2, r0 = new Float64Array(NZ), n = ext.length;
+    for (j = 0; j < NZ; j++) {
+      var s = 0;
+      for (var q = -R; q <= R; q++) { var idx = j + pad + q; if (idx < 0) idx = 0; else if (idx >= n) idx = n - 1; s += k[q + R] * ext[idx]; }
+      var wgt = smoothstep(D.foot_h - 9, D.foot_h - 3, z[j]);
+      r0[j] = D.r_foot + (s - D.r_foot) * wgt;
+    }
+    return { r0: r0, rsh: rsh,
+      foot_lean: halfMeridianLean(rBelly, D.r_foot, D.belly_z - D.foot_h, D.lean_f),
+      shoulder_lean: halfMeridianLean(rBelly, rsh, D.shoulder_z - D.belly_z, D.lean_s) };
+  }
+
+  /* blur each row round the jar (sigma in mm, wraps), then up the jar (sigma in mm, clamped ends) */
+  function blur(src, NT, NZ, r0, dth, dz, sigU, sigZ) {
+    var tmp = new Float32Array(src.length), out = new Float32Array(src.length), i, j, q;
+    var cache = {}, rowbuf = null;
+    for (j = 0; j < NZ; j++) {
+      var sg = sigU / (r0[j] * dth), key = Math.round(sg * 50);
+      var k = cache[key] || (cache[key] = gaussKernel(key / 50)), R = (k.length - 1) / 2, o = j * NT;
+      if (R === 0) { for (i = 0; i < NT; i++) tmp[o + i] = src[o + i]; continue; }
+      if (!rowbuf || rowbuf.length < NT + 2 * R) rowbuf = new Float32Array(NT + 2 * R + 64);
+      for (i = 0; i < NT + 2 * R; i++) rowbuf[i] = src[o + ((i - R) % NT + NT) % NT];
+      for (i = 0; i < NT; i++) { var s = 0; for (q = 0; q <= 2 * R; q++) s += k[q] * rowbuf[i + q]; tmp[o + i] = s; }
+    }
+    var kz = gaussKernel(sigZ / dz), Rz = (kz.length - 1) / 2;
+    if (Rz === 0) return tmp;
+    for (j = 0; j < NZ; j++) {
+      for (i = 0; i < NT; i++) out[j * NT + i] = 0;
+      for (q = -Rz; q <= Rz; q++) {
+        var jj = j + q; if (jj < 0) jj = 0; else if (jj >= NZ) jj = NZ - 1;
+        var wq = kz[q + Rz], a = jj * NT, b = j * NT;
+        for (i = 0; i < NT; i++) out[b + i] += wq * tmp[a + i];
+      }
+    }
+    return out;
+  }
+
+  /* one pass of the surface for a given plain belly radius */
+  function buildOnce(P, D, G, rBelly) {
+    var NT = G.NT, NZ = G.NZ, dz = G.dz, dth = G.dth, z = G.z, th = G.theta, N = NT * NZ, i, j, o, q;
+    var pr = profile(P, D, z, rBelly), r0 = pr.r0;
+    var r0z = new Float64Array(NZ), sArc = new Float64Array(NZ), vq = new Float64Array(NZ), budget = new Float64Array(NZ);
+    var capTan = Math.tan(rad(D.cap));
+    for (j = 0; j < NZ; j++) r0z[j] = j === 0 ? (r0[1] - r0[0]) / dz : j === NZ - 1 ? (r0[j] - r0[j - 1]) / dz : (r0[j + 1] - r0[j - 1]) / (2 * dz);
+    for (j = 1; j < NZ; j++) {
+      sArc[j] = sArc[j - 1] + Math.sqrt(1 + Math.pow(0.5 * (r0z[j] + r0z[j - 1]), 2)) * dz;
+      vq[j] = vq[j - 1] + 0.5 * (1 / r0[j] + 1 / r0[j - 1]) * dz;
+    }
+    for (j = 0; j < NZ; j++) budget[j] = Math.max(0, capTan - Math.abs(r0z[j]) - 0.04);
+    var w = D.w, rMin = P.min_radius_beads * w + w / 2;
+
+    // ---------------- lei of plumeria ----------------
+    var nF = Math.round(P.n_flowers), front = rad(P.front_deg), leiZ0 = D.belly_z + P.lei_rise * D.k, drape = P.lei_drape * D.k;
+    var leiLine = new Float64Array(NT);
+    for (i = 0; i < NT; i++) leiLine[i] = leiZ0 - drape * Math.cos(th[i] - front);
+    var F = new Float32Array(N), inside = new Uint8Array(N), throat = new Float32Array(N);
+    var flowers = [];
+    for (var kf = 0; kf < nF; kf++) {
+      var thk = front + TAU * kf / nF, c = Math.cos(thk - front);
+      flowers.push({ th: thk, z: leiZ0 - drape * c, R: D.petal_len + D.petal_var * c, rot: rad(P.flower_twist_deg[kf % P.flower_twist_deg.length]) });
+    }
+    var lead = P.lead, trail = D.trail;
+    flowers.forEach(function (f) {
+      var jc = Math.min(NZ - 1, Math.max(0, Math.round(f.z / dz))), sk = sArc[jc] + (f.z - z[jc]) * (jc < NZ - 1 ? (sArc[jc + 1] - sArc[jc]) / dz : 1);
+      var Rf = f.R, Wm = P.petal_w * Rf, reachR = 1.06 * Rf;
+      for (var j = 0; j < NZ; j++) {
+        var v = sArc[j] - sk; if (v < -reachR || v > reachR) continue;
+        var rj = r0[j], span = Math.min(PI, reachR / rj), iw = Math.ceil(span / dth), ic = Math.round(((f.th % TAU + TAU) % TAU) / dth);
+        for (var di = -iw; di <= iw; di++) {
+          var i = ((ic + di) % NT + NT) % NT, u = rj * wrap(th[i] - f.th), rho = Math.sqrt(u * u + v * v);
+          if (rho > reachR) continue;
+          var phi = Math.atan2(v, u), t = rho / Rf, o = j * NT + i, best = 0, ins = false;
+          for (var p = 0; p < 5; p++) {
+            var a = wrap(phi - f.rot - p * TAU / 5 - P.swirl * (t - 0.5));
+            var x = rho * Math.cos(a), y = rho * Math.sin(a);
+            if (!(x > 0 && x < Rf)) continue;
+            var tt = x / Rf, wd = Wm * Math.pow(Math.sin(PI * Math.pow(tt, P.petal_p)), P.petal_q);
+            if (Math.abs(y) >= wd) continue;
+            var yn = y / Math.max(wd, 1e-6), taper = 1 - P.tip_drop * smoothstep(0.70, 1.0, tt);
+            var hgt = (0.5 * (lead + trail) + 0.5 * (lead - trail) * yn) * taper;
+            if (hgt > best) best = hgt; ins = true;
+          }
+          if (ins) { inside[o] = 1; if (best > F[o]) F[o] = best; }
+          var g = rho / (0.17 * Rf); throat[o] += D.throat * Math.exp(-g * g);
+        }
+      }
+    });
+    for (o = 0; o < N; o++) { var fv = inside[o] ? F[o] - throat[o] : 0; F[o] = fv > 0 ? fv : 0; }
+
+    // ---------------- distance from the lei, over the surface (vector distance transform) ----------------
+    var d2 = new Float32Array(N), sI = new Int32Array(N), sJ = new Int32Array(N), cosT = G.cosT, any = false;
+    for (o = 0; o < N; o++) { if (inside[o]) { d2[o] = 0; sI[o] = o % NT; sJ[o] = (o / NT) | 0; any = true; } else { d2[o] = 1e30; sI[o] = -1; } }
+    function relax(j, i, nj, ni) {
+      var n = nj * NT + ni, si = sI[n]; if (si < 0) return;
+      var sj = sJ[n], a = r0[j], b = r0[sj], dzz = z[j] - z[sj], di = i - si; if (di < 0) di += NT;
+      var dd = a * a + b * b - 2 * a * b * cosT[di] + dzz * dzz, m = j * NT + i;
+      if (dd < d2[m]) { d2[m] = dd; sI[m] = si; sJ[m] = sj; }
+    }
+    if (any) for (var it = 0; it < 2; it++) {
+      for (j = 0; j < NZ; j++) for (var rep = 0; rep < 2; rep++) {
+        for (i = 0; i < NT; i++) { if (!d2[j * NT + i]) continue; var il = i ? i - 1 : NT - 1, ir = i === NT - 1 ? 0 : i + 1;
+          if (j) { relax(j, i, j - 1, il); relax(j, i, j - 1, i); relax(j, i, j - 1, ir); } relax(j, i, j, il); }
+        for (i = NT - 1; i >= 0; i--) { if (!d2[j * NT + i]) continue; relax(j, i, j, i === NT - 1 ? 0 : i + 1); }
+      }
+      for (j = NZ - 1; j >= 0; j--) for (rep = 0; rep < 2; rep++) {
+        for (i = NT - 1; i >= 0; i--) { if (!d2[j * NT + i]) continue; il = i ? i - 1 : NT - 1; ir = i === NT - 1 ? 0 : i + 1;
+          if (j < NZ - 1) { relax(j, i, j + 1, ir); relax(j, i, j + 1, i); relax(j, i, j + 1, il); } relax(j, i, j, ir); }
+        for (i = 0; i < NT; i++) { if (!d2[j * NT + i]) continue; relax(j, i, j, i ? i - 1 : NT - 1); }
+      }
+    }
+
+    // ---------------- echo lines and seigaiha ----------------
+    var lamE = P.echo_pitch_beads * w, Ae = Math.min(P.echo_amp, lamE * lamE / (4 * PI * PI * rMin)), nUp = P.echo_rings_up;
+    var Ns = Math.round(P.wave_count) || Math.max(3, Math.floor(PI * D.r_foot / (P.wave_rings * 4 * w)));
+    var pitch = TAU / Ns, rhoS = pitch / 2, dv = rhoS / 2, band = 18 * D.k;
+    var jf = Math.min(NZ - 1, Math.round(D.foot_h / dz)), v0 = vq[jf] - 2 * dv, nRows = Math.ceil((vq[NZ - 1] + rhoS - v0) / dv) + 1;
+    var fine = new Float32Array(N), AsZ = new Float64Array(NZ), lamS = new Float64Array(NZ);
+    for (j = 0; j < NZ; j++) {
+      lamS[j] = rhoS * r0[j] / P.wave_rings;
+      AsZ[j] = Math.min(P.wave_amp, lamS[j] * lamS[j] / (4 * PI * PI * rMin), budget[j] * lamS[j] / TAU);
+      var AeZ = Math.min(Ae, budget[j] * lamE / TAU), footW = smoothstep(D.foot_h + 1, D.foot_h + 14, z[j]);
+      // lowest wave row that can own a cell at this height
+      var kLo = Math.max(0, Math.ceil((vq[j] - rhoS - v0) / dv));
+      for (i = 0; i < NT; i++) {
+        o = j * NT + i; if (inside[o]) continue;
+        var d = Math.sqrt(d2[o]); if (!any) d = 1e9;
+        var above = smoothstep(-band, band, z[j] - leiLine[i]), val = 0;
+        if (AeZ > 0 && d < (nUp + 0.6) * lamE) {
+          var wUp = (1 - smoothstep(nUp * lamE, (nUp + 0.6) * lamE, d)) * Math.exp(-0.22 * d / lamE), wDn = 1 - smoothstep(lamE, 1.6 * lamE, d);
+          val -= AeZ * Math.sin(TAU * d / lamE) * (above * wUp + (1 - above) * wDn);
+        }
+        var wWave = (1 - above) * smoothstep(lamE, 1.6 * lamE, d) * footW;
+        if (wWave > 1e-4 && AsZ[j] > 0) {
+          var dist = 1;
+          for (var kr = kLo; kr < nRows; kr++) {          // lower rows are in front
+            var vc = v0 + kr * dv, dvv = vq[j] - vc; if (dvv < -rhoS) break; if (dvv > rhoS) continue;
+            var tw = ((th[i] - 0.5 * (kr % 2) * pitch + pitch / 2) % pitch + pitch) % pitch - pitch / 2, dd = Math.sqrt(tw * tw + dvv * dvv);
+            if (dd <= rhoS) { dist = dd / rhoS; break; }
+          }
+          val += (AsZ[j] * Math.cos(TAU * P.wave_rings * dist) + P.wave_step * (dist - 0.5)) * wWave;
+        }
+        fine[o] = val;
+      }
+    }
+
+    // ---------------- soften to what the bead can follow, then combine ----------------
+    var Fb = blur(F, NT, NZ, r0, dth, dz, P.soft_round_beads * w, P.soft_up_layers * D.h);
+    var fb = blur(fine, NT, NZ, r0, dth, dz, P.soft_fine_beads * w, P.soft_fine_beads * w);
+    var r = new Float32Array(N);
+    for (j = 0; j < NZ; j++) {
+      var plain = smoothstep(D.foot_h - 1, D.foot_h + 8, z[j]) * (1 - smoothstep(D.shoulder_z - 30 * D.k, D.shoulder_z - 12 * D.k, z[j]));
+      for (i = 0; i < NT; i++) { o = j * NT + i; r[o] = r0[j] + (Fb[o] + fb[o]) * plain; }
+    }
+
+    // ---------------- pouring lip ----------------
+    // The rim is drawn out into a rounded nose. Its tip rises along a straight keel leaning spout_lean_deg, so it
+    // leaves the neck on its own and stays under the overhang cap. At every height the bump is just wide enough
+    // for the bead: nose and side fillets no tighter than the bead-turn limit, flanks no steeper than 52 degrees.
+    var spout = null;
+    if (P.spout && P.spout_reach > 0) {
+      var az = front + rad(P.spout_deg), rn = P.spout_nose_beads * w, rf = Math.max(P.min_radius_beads * w - w / 2, 1.5 * w) + w / 2;
+      var lean = Math.min(P.spout_lean_deg, D.cap - 1), tl = Math.tan(rad(lean)), tipTop = r0[NZ - 1] + P.spout_reach, zStart = null, wTop = 0;
+      var tanFlank = Math.tan(rad(52)), ic2 = Math.round(((az % TAU + TAU) % TAU) / dth);
+      for (j = 0; j < NZ; j++) {
+        var Rb = r0[j], pro = tipTop - tl * (D.H - z[j]) - Rb; if (pro <= 0.01) continue;
+        if (zStart === null) zStart = z[j];
+        var Rt = Rb + pro;
+        var wFlank = pro * (PI / 2) / (tanFlank * (Rb + pro / 2));
+        var wNose = Math.sqrt(pro * PI * PI / (2 * Rt * Rt * Math.max(1 / rn - 1 / Rt, 1e-4)));
+        var wFill = Math.sqrt(pro * PI * PI / (2 * Rb * Rb * (1 / rf + 1 / Rb)));
+        var pw = Math.min(PI * 0.9, Math.max(wFlank, wNose, wFill) * P.spout_width);
+        wTop = pw;
+        var iw2 = Math.ceil(pw / dth) + 1;
+        for (var dj = -iw2; dj <= iw2; dj++) {
+          i = ((ic2 + dj) % NT + NT) % NT; var xs = Math.abs(wrap(th[i] - az)) / pw; if (xs >= 1) continue;
+          var cs = Math.cos(PI * xs / 2); r[j * NT + i] += pro * cs * cs;
+        }
+      }
+      spout = { az: az, z_start: zStart, lean: lean, tip_r: tipTop, half_width_deg: deg(wTop) };
+    }
+
+    // ---------------- overhang cap: nearest surface whose meridian slope never exceeds the cap ----------------
+    var Lz = Math.tan(rad(D.cap - 0.4)) * dz, lo = new Float32Array(NZ), up = new Float32Array(NZ), moved = 0;
+    for (i = 0; i < NT; i++) {
+      lo[0] = up[0] = r[i];
+      for (j = 1; j < NZ; j++) { var v2 = r[j * NT + i]; lo[j] = Math.min(v2, lo[j - 1] + Lz); up[j] = Math.max(v2, up[j - 1] - Lz); }
+      for (j = NZ - 2; j >= 0; j--) { if (lo[j + 1] + Lz < lo[j]) lo[j] = lo[j + 1] + Lz; if (up[j + 1] - Lz > up[j]) up[j] = up[j + 1] - Lz; }
+      for (j = 0; j < NZ; j++) { o = j * NT + i; var nv = 0.5 * (lo[j] + up[j]), dm = Math.abs(nv - r[o]); if (dm > moved) moved = dm; r[o] = nv; }
+    }
+    var sp = P.soft_final_beads * w;
+    if (sp > 0.05) r = blur(r, NT, NZ, r0, dth, dz, sp, sp);
+    for (j = 0; j < NZ; j++) { var lk = smoothstep(D.foot_h - 9, D.foot_h - 3, z[j]); if (lk < 1) for (i = 0; i < NT; i++) { o = j * NT + i; r[o] = r0[j] + (r[o] - r0[j]) * lk; } }
+    var rmax = 0, rmaxBody = 0, jBody = Math.min(NZ - 1, Math.floor(D.shoulder_z / dz));      // body = below the neck, so a long lip does not count
+    for (o = 0; o < N; o++) if (r[o] > rmax) rmax = r[o];
+    for (o = 0; o < (jBody + 1) * NT; o++) if (r[o] > rmaxBody) rmaxBody = r[o];
+    return { r: r, r0: r0, rmax: rmax, rmaxBody: rmaxBody, moved: moved, prof: pr, flowers: flowers, leiLine: leiLine, spout: spout,
+      echo_amp: Ae, echo_pitch: lamE, wave_count: Ns, wave_amp_max: Math.max.apply(null, Array.prototype.slice.call(AsZ)), wave_pitch_foot: lamS[jf] };
+  }
+
+  function makeGrid(P, D, res) {
+    var NT = res.nTheta, dz = res.dz, NZ = Math.round(D.H / dz) + 1, th = new Float64Array(NT), z = new Float64Array(NZ), cosT = new Float64Array(NT), sinT = new Float64Array(NT), i;
+    for (i = 0; i < NT; i++) { th[i] = TAU * i / NT; cosT[i] = Math.cos(th[i]); sinT[i] = Math.sin(th[i]); }
+    for (i = 0; i < NZ; i++) z[i] = i * dz;
+    return { NT: NT, NZ: NZ, dz: dz, dth: TAU / NT, theta: th, z: z, cosT: cosT, sinT: sinT };
+  }
+
+  /* Build the jar. res = {nTheta, dz}. state.rBelly carries the last solution to save a pass. */
+  function build(Pin, res, state) {
+    var P = {}, k; for (k in DEFAULTS) P[k] = (Pin && Pin[k] !== undefined) ? Pin[k] : DEFAULTS[k];
+    P.height = Math.max(P.layer_h * 20, Math.round(P.height / P.layer_h) * P.layer_h);       // whole layers
+    var D = derive(P), G = makeGrid(P, D, res), S, tries = (res.exact ? 6 : 2);
+    var rB = state && state.rBelly ? state.rBelly : P.max_d / 2 - P.lead + 0.5;
+    for (var t = 0; t < tries; t++) {
+      S = buildOnce(P, D, G, rB);
+      var err = P.max_d / 2 - S.rmaxBody;
+      if (Math.abs(err) < (res.exact ? 0.02 : 0.25)) break;
+      rB += err;
+      if (t === tries - 1) S = buildOnce(P, D, G, rB);
+    }
+    if (state) state.rBelly = rB;
+    S.P = P; S.D = D; S.G = G; S.rBelly = rB;
+    S.M = measure(S);
+    return S;
+  }
+
+  function measure(S) {
+    var P = S.P, D = S.D, G = S.G, r = S.r, NT = G.NT, NZ = G.NZ, dz = G.dz, dth = G.dth, z = G.z, w = D.w, h = D.h, i, j, o;
+    var lean = new Float32Array(NT * NZ), loopC = new Float64Array(NZ), rbar = new Float64Array(NZ);
+    var kmax = -1e9, kmin = 1e9, kmaxAt = 0, kminAt = 0, outMax = 0, inMax = 0, outAt = 0, inAt = 0, aSum = 0, a30 = 0, a25 = 0, a20 = 0, a10 = 0;
+    for (j = 0; j < NZ; j++) {
+      var ja = j ? j - 1 : 0, jb = j < NZ - 1 ? j + 1 : NZ - 1, sLoop = 0, sR = 0;
+      for (i = 0; i < NT; i++) {
+        o = j * NT + i; var il = i ? i - 1 : NT - 1, ir = i === NT - 1 ? 0 : i + 1;
+        var rv = r[o], rt = (r[j * NT + ir] - r[j * NT + il]) / (2 * dth), rtt = (r[j * NT + ir] - 2 * rv + r[j * NT + il]) / (dth * dth);
+        var rz = (r[jb * NT + i] - r[ja * NT + i]) / ((jb - ja) * dz), hy = Math.sqrt(rv * rv + rt * rt);
+        var ang = deg(Math.atan(rv * rz / hy)); lean[o] = ang;
+        var kap = (rv * rv + 2 * rt * rt - rv * rtt) / (hy * hy * hy);
+        if (z[j] >= D.foot_h) { if (kap > kmax) { kmax = kap; kmaxAt = o; } if (kap < kmin) { kmin = kap; kminAt = o; } }
+        if (ang > outMax) { outMax = ang; outAt = o; } if (-ang > inMax) { inMax = -ang; inAt = o; }
+        var ar = hy * dth * Math.sqrt(1 + rz * rz), aa = Math.abs(ang); aSum += ar;
+        if (aa > 30) a30 += ar; if (aa > 25) a25 += ar; if (aa > 20) a20 += ar; if (aa > 10) a10 += ar;
+        var mid = rv - w / 2; sLoop += Math.sqrt(mid * mid + rt * rt) * dth; sR += rv;
+      }
+      loopC[j] = sLoop; rbar[j] = sR / NT;
+    }
+    function at(arr, zz) { var f = zz / dz, a = Math.floor(f); if (a >= NZ - 1) return arr[NZ - 1]; var t = f - a; return arr[a] * (1 - t) + arr[a + 1] * t; }
+    var nLay = Math.round(D.H / h), path = 0, zmom = 0, lmin = 1e9, lmax = 0, lminZ = 0, lmaxZ = 0, footVol = 0, layersWall = 0;
+    for (var kL = 0; kL < nLay; kL++) {
+      var zc = (kL + 0.5) * h;
+      if (zc < D.foot_h) { var rb = at(rbar, zc); footVol += PI * rb * rb * h; continue; }
+      var Lk = at(loopC, zc); path += Lk; zmom += Lk * zc; layersWall++;
+      if (Lk < lmin) { lmin = Lk; lminZ = zc; } if (Lk > lmax) { lmax = Lk; lmaxZ = zc; }
+    }
+    var beadArea = w * h - h * h * (1 - PI / 4), wallVol = path * beadArea, rho = P.density;
+    var zcm = (zmom / Math.max(path, 1e-9) * wallVol + D.foot_h / 2 * footVol) / Math.max(wallVol + footVol, 1e-9);
+    var neckJ = 0, neckR = 1e9; for (j = 0; j < NZ; j++) if (z[j] > D.belly_z && rbar[j] < neckR) { neckR = rbar[j]; neckJ = j; }
+    var cap = 0; for (j = 0; j < NZ; j++) if (z[j] >= D.foot_h && j <= neckJ) { var ri = Math.max(rbar[j] - w, 0); cap += PI * ri * ri * dz; }
+    var skinConvex = 1 / kmax, skinConcave = kmin < 0 ? 1 / -kmin : Infinity, pathR = Math.min(skinConvex - w / 2, skinConcave + w / 2);
+    var tightAt = (skinConvex - w / 2 <= skinConcave + w / 2) ? kmaxAt : kminAt, leanMax = Math.max(outMax, inMax), leanAt = outMax >= inMax ? outAt : inAt;
+    var M = {
+      height: D.H, widest: 2 * S.rmaxBody, reach_max: S.rmax, foot_d: 2 * rbar[0], lip_d: 2 * rbar[NZ - 1], neck_d: 2 * neckR, neck_z: z[neckJ],
+      lean_out_max: outMax, lean_in_max: inMax, lean_max: leanMax, lean_max_z: z[(leanAt / NT) | 0], lean_max_deg_at: deg(G.theta[leanAt % NT]),
+      step_max_mm: h * Math.tan(rad(leanMax)), step_max_pct: 100 * h * Math.tan(rad(leanMax)) / w,
+      share_over_30: 100 * a30 / aSum, share_over_25: 100 * a25 / aSum, share_over_20: 100 * a20 / aSum, share_over_10: 100 * a10 / aSum,
+      skin_radius_convex: skinConvex, skin_radius_concave: skinConcave, path_radius_min: pathR, path_radius_target: P.min_radius_beads * w,
+      path_radius_z: z[(tightAt / NT) | 0], path_radius_deg_at: deg(G.theta[tightAt % NT]),
+      layers: nLay, layers_base: nLay - layersWall, layers_wall: layersWall,
+      loop_min: lmin, loop_min_z: lminZ, loop_max: lmax, loop_max_z: lmaxZ, path_m: path / 1000,
+      bead_area: beadArea, wall_kg: wallVol * rho / 1e6, base_kg: footVol * rho / 1e6, mass_kg: (wallVol + footVol) * rho / 1e6,
+      flow_mm3_s: beadArea * P.print_speed, flow_kg_h: beadArea * P.print_speed * rho * 3.6 / 1000,
+      layer_time_min: lmin / P.print_speed, layer_time_max: lmax / P.print_speed, wall_time_min: path / P.print_speed / 60,
+      com_z: zcm, tip_angle: deg(Math.atan(rbar[0] / zcm)), capacity_l: cap / 1e6,
+      relaxed_by: S.moved, foot_lean: S.prof.foot_lean, shoulder_lean: S.prof.shoulder_lean,
+      echo_amp: S.echo_amp, echo_pitch: S.echo_pitch, wave_count: S.wave_count, wave_amp_max: S.wave_amp_max,
+      spout_z_start: S.spout ? S.spout.z_start : null, spout_tip_r: S.spout ? S.spout.tip_r : null, spout_half_width_deg: S.spout ? S.spout.half_width_deg : null
+    };
+    var notes = [];
+    if (leanMax > D.cap + 0.05) notes.push("The wall leans past the cap.");
+    if (pathR < M.path_radius_target - 0.05) notes.push("The bead has to turn tighter than " + P.min_radius_beads + " bead widths. Soften the petals, lower the relief or widen the lip.");
+    if (Math.max(M.foot_lean, M.shoulder_lean) > D.cap + 0.01) notes.push("The plain form needs more lean than the cap. Make the jar taller, the foot wider or the neck wider.");
+    if (S.moved > 3) notes.push("Relief was flattened by up to " + S.moved.toFixed(1) + " mm to stay under the cap.");
+    if (w < 1.2 * P.nozzle - 1e-9 || w > 1.8 * P.nozzle + 1e-9) notes.push("Bead width is outside 120 to 180% of the nozzle bore.");
+    if (h > 0.67 * w) notes.push("Layer height is more than two thirds of the bead width.");
+    M.notes = notes; M.ok = notes.length === 0;
+    S.lean = lean; S.loopC = loopC; S.rbar = rbar;
+    return M;
+  }
+
+  // ============================== meshes ==============================
+  /* solid for vase-mode slicing: outer skin, flat bottom, flat top. Returns binary STL as ArrayBuffer. */
+  function stlSolid(S, stepZ) {
+    var G = S.G, NT = G.NT, rows = [], j, i;
+    stepZ = stepZ || 1;
+    for (j = 0; j < G.NZ - 1; j += stepZ) rows.push(j); rows.push(G.NZ - 1);
+    var nr = rows.length, nTri = (nr - 1) * NT * 2 + 2 * NT, buf = new ArrayBuffer(84 + nTri * 50), dv = new DataView(buf), off = 84;
+    writeHeader(buf, "Lei Moon Jar - solid for vase mode - units mm"); dv.setUint32(80, nTri, true);
+    function P3(jr, i) { var j = rows[jr], rv = S.r[j * NT + i]; return [rv * G.cosT[i], rv * G.sinT[i], G.z[j]]; }
+    function tri(a, b, c) { off = writeTri(dv, off, a, b, c); }
+    for (var jr = 0; jr < nr - 1; jr++) for (i = 0; i < NT; i++) {
+      var i2 = (i + 1) % NT, a = P3(jr, i), b = P3(jr, i2), c = P3(jr + 1, i2), d = P3(jr + 1, i);
+      tri(a, b, c); tri(a, c, d);
+    }
+    var cb = [0, 0, G.z[0]], ct = [0, 0, G.z[G.NZ - 1]];
+    for (i = 0; i < NT; i++) { i2 = (i + 1) % NT; tri(cb, P3(0, i2), P3(0, i)); tri(ct, P3(nr - 1, i), P3(nr - 1, i2)); }
+    return buf;
+  }
+  /* hollow shell as printed: wall of one bead width, solid base, open top */
+  function stlShell(S, stepZ) {
+    var G = S.G, D = S.D, NT = G.NT, w = D.w, rows = [], j, i;
+    stepZ = stepZ || 1;
+    for (j = 0; j < G.NZ - 1; j += stepZ) rows.push(j); rows.push(G.NZ - 1);
+    var j0 = 0; while (j0 < rows.length - 1 && G.z[rows[j0]] < D.foot_h - 1e-6) j0++;
+    var nr = rows.length, ni = nr - j0, nTri = (nr - 1) * NT * 2 + (ni - 1) * NT * 2 + NT * 2 + NT + NT;
+    var buf = new ArrayBuffer(84 + nTri * 50), dv = new DataView(buf), off = 84;
+    writeHeader(buf, "Lei Moon Jar - hollow shell, wall = bead width - units mm"); dv.setUint32(80, nTri, true);
+    function Po(jr, i) { var j = rows[jr], rv = S.r[j * NT + i]; return [rv * G.cosT[i], rv * G.sinT[i], G.z[j]]; }
+    function Pi(jr, i) { var j = rows[jr], rv = Math.max(S.r[j * NT + i] - w, 0.5); return [rv * G.cosT[i], rv * G.sinT[i], G.z[j]]; }
+    function tri(a, b, c) { off = writeTri(dv, off, a, b, c); }
+    for (var jr = 0; jr < nr - 1; jr++) for (i = 0; i < NT; i++) { var i2 = (i + 1) % NT; tri(Po(jr, i), Po(jr, i2), Po(jr + 1, i2)); tri(Po(jr, i), Po(jr + 1, i2), Po(jr + 1, i)); }
+    for (jr = j0; jr < nr - 1; jr++) for (i = 0; i < NT; i++) { i2 = (i + 1) % NT; tri(Pi(jr, i), Pi(jr + 1, i2), Pi(jr, i2)); tri(Pi(jr, i), Pi(jr + 1, i), Pi(jr + 1, i2)); }
+    var cb = [0, 0, G.z[0]], cf = [0, 0, G.z[rows[j0]]];
+    for (i = 0; i < NT; i++) {
+      i2 = (i + 1) % NT;
+      tri(cb, Po(0, i2), Po(0, i));                                   // underside
+      tri(cf, Pi(j0, i), Pi(j0, i2));                                 // inside floor
+      tri(Po(nr - 1, i), Po(nr - 1, i2), Pi(nr - 1, i2)); tri(Po(nr - 1, i), Pi(nr - 1, i2), Pi(nr - 1, i));   // rim
+    }
+    return buf;
+  }
+  function writeHeader(buf, text) { var u = new Uint8Array(buf, 0, 80); for (var i = 0; i < 80; i++) u[i] = i < text.length ? text.charCodeAt(i) : 32; }
+  function writeTri(dv, off, a, b, c) {
+    var ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    var nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx, l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    dv.setFloat32(off, nx / l, true); dv.setFloat32(off + 4, ny / l, true); dv.setFloat32(off + 8, nz / l, true);
+    dv.setFloat32(off + 12, a[0], true); dv.setFloat32(off + 16, a[1], true); dv.setFloat32(off + 20, a[2], true);
+    dv.setFloat32(off + 24, b[0], true); dv.setFloat32(off + 28, b[1], true); dv.setFloat32(off + 32, b[2], true);
+    dv.setFloat32(off + 36, c[0], true); dv.setFloat32(off + 40, c[1], true); dv.setFloat32(off + 44, c[2], true);
+    dv.setUint16(off + 48, 0, true); return off + 50;
+  }
+
+  /* arrays for a viewer: outer skin and inner skin (with floor and rim) of the printed wall */
+  function viewMesh(S) {
+    var G = S.G, D = S.D, NT = G.NT, NZ = G.NZ, dz = G.dz, dth = G.dth, r = S.r, w = D.w, i, j, o;
+    var j0 = Math.min(NZ - 2, Math.ceil(D.foot_h / dz - 1e-6)), nIn = NZ - j0;
+    var po = new Float32Array(NT * NZ * 3), no = new Float32Array(NT * NZ * 3), lo = new Float32Array(NT * NZ);
+    var nvI = NT * nIn + 1 + NT, pi = new Float32Array(nvI * 3), nI = new Float32Array(nvI * 3), li = new Float32Array(nvI);
+    for (j = 0; j < NZ; j++) {
+      var ja = j ? j - 1 : 0, jb = j < NZ - 1 ? j + 1 : NZ - 1;
+      for (i = 0; i < NT; i++) {
+        o = j * NT + i; var il = i ? i - 1 : NT - 1, ir = i === NT - 1 ? 0 : i + 1, rv = r[o];
+        var rt = (r[j * NT + ir] - r[j * NT + il]) / (2 * dth), rz = (r[jb * NT + i] - r[ja * NT + i]) / ((jb - ja) * dz), c = G.cosT[i], s = G.sinT[i];
+        var nx = rt * s + rv * c, ny = -rt * c + rv * s, nz = -rv * rz, l = Math.sqrt(nx * nx + ny * ny + nz * nz); nx /= l; ny /= l; nz /= l;
+        po[o * 3] = rv * c; po[o * 3 + 1] = rv * s; po[o * 3 + 2] = G.z[j]; no[o * 3] = nx; no[o * 3 + 1] = ny; no[o * 3 + 2] = nz; lo[o] = S.lean[o];
+        if (j >= j0) { var q = (j - j0) * NT + i, ri = Math.max(rv - w, 0.5);
+          pi[q * 3] = ri * c; pi[q * 3 + 1] = ri * s; pi[q * 3 + 2] = G.z[j]; nI[q * 3] = -nx; nI[q * 3 + 1] = -ny; nI[q * 3 + 2] = -nz; li[q] = S.lean[o]; }
+      }
+    }
+    var io = new Uint32Array((NZ - 1) * NT * 6), k = 0;
+    for (j = 0; j < NZ - 1; j++) for (i = 0; i < NT; i++) { var i2 = (i + 1) % NT, a = j * NT + i, b = j * NT + i2, cI = (j + 1) * NT + i2, d = (j + 1) * NT + i;
+      io[k++] = a; io[k++] = b; io[k++] = cI; io[k++] = a; io[k++] = cI; io[k++] = d; }
+    // inner: wall (facing the axis), floor fan, rim ring (duplicated top ring of the outer skin so normals point up)
+    var cF = NT * nIn, rim0 = cF + 1, ii = new Uint32Array((nIn - 1) * NT * 6 + NT * 3 + NT * 6); k = 0;
+    pi[cF * 3] = 0; pi[cF * 3 + 1] = 0; pi[cF * 3 + 2] = G.z[j0]; nI[cF * 3 + 2] = 1;
+    for (i = 0; i < NT; i++) { var src = (NZ - 1) * NT + i, t = rim0 + i; pi[t * 3] = po[src * 3]; pi[t * 3 + 1] = po[src * 3 + 1]; pi[t * 3 + 2] = po[src * 3 + 2]; nI[t * 3 + 2] = 1; li[t] = 0; }
+    for (j = 0; j < nIn - 1; j++) for (i = 0; i < NT; i++) { i2 = (i + 1) % NT; a = j * NT + i; b = j * NT + i2; cI = (j + 1) * NT + i2; d = (j + 1) * NT + i;
+      ii[k++] = a; ii[k++] = cI; ii[k++] = b; ii[k++] = a; ii[k++] = d; ii[k++] = cI; }
+    for (i = 0; i < NT; i++) { i2 = (i + 1) % NT; ii[k++] = cF; ii[k++] = i; ii[k++] = i2; }
+    var topI = (nIn - 1) * NT;
+    for (i = 0; i < NT; i++) { i2 = (i + 1) % NT; ii[k++] = rim0 + i; ii[k++] = rim0 + i2; ii[k++] = topI + i2; ii[k++] = rim0 + i; ii[k++] = topI + i2; ii[k++] = topI + i; }
+    return { outer: { position: po, normal: no, lean: lo, index: io }, inner: { position: pi, normal: nI, lean: li, index: ii } };
+  }
+
+  root.LeiJar = { DEFAULTS: DEFAULTS, build: build, stlSolid: stlSolid, stlShell: stlShell, viewMesh: viewMesh, version: "2.0" };
+  if (typeof module !== "undefined" && module.exports) module.exports = root.LeiJar;
+})(typeof self !== "undefined" ? self : globalThis);
+</script>
+<script id="js-exporters">
+/* Lei Moon Jar: STEP and ZIP writers. No DOM. Needs LeiJar (core.js) only for the build result it is given. */
+(function (root) {
+  "use strict";
+  var PI = Math.PI, TAU = 2 * Math.PI;
+
+  // ============================== STEP (AP214) ==============================
+  /* The outer skin becomes two bicubic B-spline faces that pass exactly through a grid of surface points
+     (periodic round the jar, split front/back so no face closes on itself); flat bottom and top faces close
+     the solid. spacing = distance between fitted points, in mm. */
+  function stepSolid(S, opts) {
+    opts = opts || {};
+    var G = S.G, D = S.D, H = D.H, spacing = opts.spacing || 3;
+    var nu = 2 * Math.max(24, Math.round(PI * S.rmax / spacing)), m = nu / 2, nv = Math.max(12, Math.round(H / spacing));
+    var NT = G.NT, NZ = G.NZ, i, j, k, c;
+
+    // sample the skin (bilinear in the build grid)
+    function radius(ti, zj) {
+      var fi = ti * NT / nu, i0 = Math.floor(fi) % NT, i1 = (i0 + 1) % NT, ft = fi - Math.floor(fi);
+      var fz = zj * (NZ - 1) / nv, j0 = Math.min(NZ - 2, Math.floor(fz)), fzz = fz - j0;
+      var a = S.r[j0 * NT + i0] * (1 - ft) + S.r[j0 * NT + i1] * ft, b = S.r[(j0 + 1) * NT + i0] * (1 - ft) + S.r[(j0 + 1) * NT + i1] * ft;
+      return a * (1 - fzz) + b * fzz;
+    }
+    var Q = [new Float64Array((nv + 1) * nu), new Float64Array((nv + 1) * nu), new Float64Array((nv + 1) * nu)];
+    for (j = 0; j <= nv; j++) for (i = 0; i < nu; i++) {
+      var rr = radius(i, j), t = TAU * i / nu;
+      Q[0][j * nu + i] = rr * Math.cos(t); Q[1][j * nu + i] = rr * Math.sin(t); Q[2][j * nu + i] = H * j / nv;
+    }
+
+    // --- round the jar: periodic cubic spline through the points (cyclic tridiagonal 1/6, 4/6, 1/6) ---
+    var a = 1 / 6, b = 4 / 6, gamma = -b, cp = new Float64Array(nu), bbv = new Float64Array(nu), zv = new Float64Array(nu), x = new Float64Array(nu);
+    function tri(rhs, out) {            // Thomas for the modified matrix
+      var bet = b - gamma; out[0] = rhs[0] / bet;
+      for (var q = 1; q < nu; q++) { cp[q] = a / bet; bet = (q === nu - 1 ? b - a * a / gamma : b) - a * cp[q]; out[q] = (rhs[q] - a * out[q - 1]) / bet; }
+      for (q = nu - 2; q >= 0; q--) out[q] -= cp[q + 1] * out[q + 1];
+    }
+    var uvec = new Float64Array(nu); uvec[0] = gamma; uvec[nu - 1] = a; tri(uvec, zv);
+    var den = 1 + zv[0] + a * zv[nu - 1] / gamma;
+    function periodicCoef(row, out) {
+      tri(row, x); var fact = (x[0] + a * x[nu - 1] / gamma) / den;
+      for (var q = 0; q < nu; q++) out[q] = x[q] - fact * zv[q];
+    }
+    // halves: clamped control rows, m + 3 points each, for u in [0, m] and [m, nu]
+    var nuc = m + 3, nvc = nv + 3;
+    var half = [[], []];                                  // half[h][coord] = Float64Array((nv+1) * nuc)
+    for (c = 0; c < 3; c++) { half[0].push(new Float64Array((nv + 1) * nuc)); half[1].push(new Float64Array((nv + 1) * nuc)); }
+    var row = new Float64Array(nu), cf = new Float64Array(nu);
+    function cm(q) { return cf[((q % nu) + nu) % nu]; }
+    for (c = 0; c < 3; c++) for (j = 0; j <= nv; j++) {
+      for (i = 0; i < nu; i++) row[i] = Q[c][j * nu + i];
+      periodicCoef(row, cf);
+      for (var h = 0; h < 2; h++) {
+        var a0 = h * m, b0 = a0 + m, o = j * nuc, dst = half[h][c];
+        dst[o] = (cm(a0 - 1) + 4 * cm(a0) + cm(a0 + 1)) / 6;
+        dst[o + 1] = (2 * cm(a0) + cm(a0 + 1)) / 3;
+        for (k = 2; k <= m; k++) dst[o + k] = cm(a0 + k - 1);
+        dst[o + m + 1] = (cm(b0 - 1) + 2 * cm(b0)) / 3;
+        dst[o + m + 2] = (cm(b0 - 1) + 4 * cm(b0) + cm(b0 + 1)) / 6;
+      }
+    }
+    // --- up the jar: cubic spline through the rows, end slopes from the data ---
+    var n1 = nv + 1, dcol = new Float64Array(n1), e = new Float64Array(n1), cpz = new Float64Array(n1);
+    function upCoef() {
+      var D0 = (-3 * dcol[0] + 4 * dcol[1] - dcol[2]) / 2, Dn = (3 * dcol[nv] - 4 * dcol[nv - 1] + dcol[nv - 2]) / 2;
+      // rows: [4 2 ...], [1 4 1], ..., [... 2 4]
+      var bet = 4; e[0] = (6 * dcol[0] + 2 * D0) / bet; var up = 2;
+      for (var q = 1; q <= nv; q++) {
+        var lo = q === nv ? 2 : 1, rhs = q === nv ? 6 * dcol[nv] - 2 * Dn : 6 * dcol[q];
+        cpz[q] = up / bet; bet = 4 - lo * cpz[q]; e[q] = (rhs - lo * e[q - 1]) / bet; up = 1;
+      }
+      for (q = nv - 1; q >= 0; q--) e[q] -= cpz[q + 1] * e[q + 1];
+    }
+    var net = [[], []];                                   // net[h][coord] = Float64Array(nvc * nuc), row-major in v
+    for (h = 0; h < 2; h++) for (c = 0; c < 3; c++) {
+      var src = half[h][c], out = new Float64Array(nvc * nuc);
+      for (k = 0; k < nuc; k++) {
+        for (j = 0; j <= nv; j++) dcol[j] = src[j * nuc + k];
+        upCoef();
+        out[k] = dcol[0]; out[nuc + k] = (2 * e[0] + e[1]) / 3;
+        for (j = 2; j <= nv; j++) out[j * nuc + k] = e[j - 1];
+        out[(nv + 1) * nuc + k] = (e[nv - 1] + 2 * e[nv]) / 3; out[(nv + 2) * nuc + k] = dcol[nv];
+      }
+      net[h].push(out);
+    }
+    // the two halves must share their seam columns exactly, and the end rows must be flat
+    for (j = 0; j < nvc; j++) for (c = 0; c < 3; c++) {
+      net[1][c][j * nuc] = net[0][c][j * nuc + nuc - 1];
+      net[1][c][j * nuc + nuc - 1] = net[0][c][j * nuc];
+    }
+    for (h = 0; h < 2; h++) for (k = 0; k < nuc; k++) { net[h][2][k] = 0; net[h][2][(nvc - 1) * nuc + k] = H; }
+
+    // --- write ---
+    var L = [], id = 0;
+    function E(s) { id++; L.push("#" + id + "=" + s + ";"); return id; }
+    function num(v) { var s = (Math.abs(v) < 5e-7 ? 0 : v).toFixed(5); s = s.replace(/0+$/, ""); return s; }   // keeps the trailing dot: "12."
+    function refs(arr) { return "(" + arr.map(function (q) { return "#" + q; }).join(",") + ")"; }
+    function knots(n) { var mu = [4], kv = ["0."]; for (var q = 1; q < n; q++) { mu.push(1); kv.push(q + "."); } mu.push(4); kv.push(n + "."); return { mu: "(" + mu.join(",") + ")", kv: "(" + kv.join(",") + ")" }; }
+    var name = (opts.name || "Lei Moon Jar").replace(/'/g, "");
+    var ctx = E("APPLICATION_CONTEXT('core data for automotive mechanical design processes')");
+    E("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#" + ctx + ")");
+    var pc = E("PRODUCT_CONTEXT('',#" + ctx + ",'mechanical')");
+    var prod = E("PRODUCT('" + name + "','" + name + "','',(#" + pc + "))");
+    var pdf = E("PRODUCT_DEFINITION_FORMATION('','',#" + prod + ")");
+    var pdc = E("PRODUCT_DEFINITION_CONTEXT('part definition',#" + ctx + ",'design')");
+    var pd = E("PRODUCT_DEFINITION('design','',#" + pdf + ",#" + pdc + ")");
+    var pds = E("PRODUCT_DEFINITION_SHAPE('','',#" + pd + ")");
+    var uL = E("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))");
+    var uA = E("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))");
+    var uS = E("(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())");
+    var unc = E("UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-4),#" + uL + ",'distance_accuracy_value','confusion accuracy')");
+    var gctx = E("(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT((#" + unc + "))GLOBAL_UNIT_ASSIGNED_CONTEXT((#" + uL + ",#" + uA + ",#" + uS + "))REPRESENTATION_CONTEXT('Context #1','3D Context with UNIT and UNCERTAINTY'))");
+    // control points
+    var pid = [new Int32Array(nvc * nuc), new Int32Array(nvc * nuc)];
+    for (h = 0; h < 2; h++) for (j = 0; j < nvc; j++) for (k = 0; k < nuc; k++) {
+      var q2 = j * nuc + k;
+      if (h === 1 && k === 0) { pid[1][q2] = pid[0][j * nuc + nuc - 1]; continue; }
+      if (h === 1 && k === nuc - 1) { pid[1][q2] = pid[0][j * nuc]; continue; }
+      pid[h][q2] = E("CARTESIAN_POINT('',(" + num(net[h][0][q2]) + "," + num(net[h][1][q2]) + "," + num(net[h][2][q2]) + "))");
+    }
+    var ku = knots(m), kvs = knots(nv);
+    function surface(h) {
+      var cols = [];
+      for (var k2 = 0; k2 < nuc; k2++) { var col = []; for (var j2 = 0; j2 < nvc; j2++) col.push(pid[h][j2 * nuc + k2]); cols.push(refs(col)); }
+      return E("B_SPLINE_SURFACE_WITH_KNOTS('',3,3,(" + cols.join(",") + "),.UNSPECIFIED.,.F.,.F.,.F.," + ku.mu + "," + kvs.mu + "," + ku.kv + "," + kvs.kv + ",.UNSPECIFIED.)");
+    }
+    function curveU(h, jrow) { var p = []; for (var k2 = 0; k2 < nuc; k2++) p.push(pid[h][jrow * nuc + k2]); return E("B_SPLINE_CURVE_WITH_KNOTS('',3," + refs(p) + ",.UNSPECIFIED.,.F.,.F.," + ku.mu + "," + ku.kv + ",.UNSPECIFIED.)"); }
+    function curveV(h, kcol) { var p = []; for (var j2 = 0; j2 < nvc; j2++) p.push(pid[h][j2 * nuc + kcol]); return E("B_SPLINE_CURVE_WITH_KNOTS('',3," + refs(p) + ",.UNSPECIFIED.,.F.,.F.," + kvs.mu + "," + kvs.kv + ",.UNSPECIFIED.)"); }
+    var sA = surface(0), sB = surface(1);
+    var Vb0 = E("VERTEX_POINT('',#" + pid[0][0] + ")"), Vbm = E("VERTEX_POINT('',#" + pid[0][nuc - 1] + ")");
+    var Vt0 = E("VERTEX_POINT('',#" + pid[0][(nvc - 1) * nuc] + ")"), Vtm = E("VERTEX_POINT('',#" + pid[0][(nvc - 1) * nuc + nuc - 1] + ")");
+    function edge(v1, v2, crv) { return E("EDGE_CURVE('',#" + v1 + ",#" + v2 + ",#" + crv + ",.T.)"); }
+    var EbA = edge(Vb0, Vbm, curveU(0, 0)), EbB = edge(Vbm, Vb0, curveU(1, 0));
+    var EtA = edge(Vt0, Vtm, curveU(0, nvc - 1)), EtB = edge(Vtm, Vt0, curveU(1, nvc - 1));
+    var Es0 = edge(Vb0, Vt0, curveV(0, 0)), Esm = edge(Vbm, Vtm, curveV(0, nuc - 1));
+    function face(loop, surf) {
+      var oe = loop.map(function (p) { return E("ORIENTED_EDGE('',*,*,#" + p[0] + "," + (p[1] ? ".T." : ".F.") + ")"); });
+      var el = E("EDGE_LOOP(''," + refs(oe) + ")"), fb = E("FACE_OUTER_BOUND('',#" + el + ",.T.)");
+      return E("ADVANCED_FACE('',(#" + fb + "),#" + surf + ",.T.)");
+    }
+    function plane(zc, up) {
+      var o = E("CARTESIAN_POINT('',(0.,0.," + num(zc) + "))"), dz = E("DIRECTION('',(0.,0.," + (up ? "1." : "-1.") + "))"), dx = E("DIRECTION('',(1.,0.,0.))");
+      return E("PLANE('',#" + E("AXIS2_PLACEMENT_3D('',#" + o + ",#" + dz + ",#" + dx + ")") + ")");
+    }
+    var fA = face([[EbA, 1], [Esm, 1], [EtA, 0], [Es0, 0]], sA);
+    var fB = face([[EbB, 1], [Es0, 1], [EtB, 0], [Esm, 0]], sB);
+    var fBot = face([[EbB, 0], [EbA, 0]], plane(0, false));
+    var fTop = face([[EtA, 1], [EtB, 1]], plane(H, true));
+    var shell = E("CLOSED_SHELL(''," + refs([fA, fB, fBot, fTop]) + ")");
+    var brep = E("MANIFOLD_SOLID_BREP('" + name + "',#" + shell + ")");
+    var o0 = E("CARTESIAN_POINT('',(0.,0.,0.))"), dz0 = E("DIRECTION('',(0.,0.,1.))"), dx0 = E("DIRECTION('',(1.,0.,0.))");
+    var ax = E("AXIS2_PLACEMENT_3D('',#" + o0 + ",#" + dz0 + ",#" + dx0 + ")");
+    var rep = E("ADVANCED_BREP_SHAPE_REPRESENTATION('',(#" + ax + ",#" + brep + "),#" + gctx + ")");
+    E("SHAPE_DEFINITION_REPRESENTATION(#" + pds + ",#" + rep + ")");
+    var stamp = (opts.date || new Date()).toISOString().slice(0, 19);
+    var head = ["ISO-10303-21;", "HEADER;", "FILE_DESCRIPTION(('" + name + ", solid for vase-mode slicing, units mm'),'2;1');",
+      "FILE_NAME('" + (opts.filename || "lei-moon-jar.step") + "','" + stamp + "',(''),(''),'Lei Moon Jar tool','Lei Moon Jar tool','');",
+      "FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));", "ENDSEC;", "DATA;"];
+    return { text: head.concat(L, ["ENDSEC;", "END-ISO-10303-21;", ""]).join("\n"), nu: nu, nv: nv, points: 2 * nuc * nvc, Q: Q, net: net, nuc: nuc, nvc: nvc, m: m };
+  }
+
+  // ============================== ZIP ==============================
+  var crcTable = null;
+  function crc32(u8) {
+    if (!crcTable) { crcTable = new Uint32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; } }
+    var crc = 0xFFFFFFFF; for (var i = 0; i < u8.length; i++) crc = crcTable[(crc ^ u8[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+  function utf8(s) { return new TextEncoder().encode(s); }
+  function deflateRaw(u8) {
+    if (typeof CompressionStream === "undefined") return Promise.resolve(null);
+    try {
+      var cs = new CompressionStream("deflate-raw"), wr = cs.writable.getWriter();
+      wr.write(u8); wr.close();
+      return new Response(cs.readable).arrayBuffer().then(function (b) { return new Uint8Array(b); }, function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  /* files: [{name, data: Uint8Array | ArrayBuffer | string}]. Resolves to an array of Uint8Array parts (make a Blob from them). */
+  function makeZip(files, when) {
+    var d = when || new Date(), dosT = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), dosD = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    var prep = files.map(function (f) {
+      var raw = typeof f.data === "string" ? utf8(f.data) : f.data instanceof Uint8Array ? f.data : new Uint8Array(f.data);
+      return deflateRaw(raw).then(function (z) {
+        var use = z && z.length < raw.length;
+        return { name: utf8(f.name), raw: raw, body: use ? z : raw, method: use ? 8 : 0, crc: crc32(raw) };
+      });
+    });
+    return Promise.all(prep).then(function (ents) {
+      var parts = [], cd = [], off = 0;
+      ents.forEach(function (e) {
+        var lh = new DataView(new ArrayBuffer(30));
+        lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, e.method, true);
+        lh.setUint16(10, dosT, true); lh.setUint16(12, dosD, true); lh.setUint32(14, e.crc, true); lh.setUint32(18, e.body.length, true);
+        lh.setUint32(22, e.raw.length, true); lh.setUint16(26, e.name.length, true); lh.setUint16(28, 0, true);
+        parts.push(new Uint8Array(lh.buffer), e.name, e.body);
+        var ch = new DataView(new ArrayBuffer(46));
+        ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, e.method, true);
+        ch.setUint16(12, dosT, true); ch.setUint16(14, dosD, true); ch.setUint32(16, e.crc, true); ch.setUint32(20, e.body.length, true); ch.setUint32(24, e.raw.length, true);
+        ch.setUint16(28, e.name.length, true); ch.setUint32(42, off, true);
+        cd.push(new Uint8Array(ch.buffer), e.name);
+        off += 30 + e.name.length + e.body.length;
+      });
+      var cdSize = cd.reduce(function (s, p) { return s + p.length; }, 0), end = new DataView(new ArrayBuffer(22));
+      end.setUint32(0, 0x06054b50, true); end.setUint16(8, ents.length, true); end.setUint16(10, ents.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+      return parts.concat(cd, [new Uint8Array(end.buffer)]);
+    });
+  }
+
+  root.LeiJarExport = { stepSolid: stepSolid, makeZip: makeZip, crc32: crc32 };
+  if (typeof module !== "undefined" && module.exports) module.exports = root.LeiJarExport;
+})(typeof self !== "undefined" ? self : globalThis);
+</script>
+<script id="js-engine">
+/* Lei Moon Jar: build, check and export engine. Runs in a Web Worker, or on the page when workers are unavailable. */
+(function (root) {
+  "use strict";
+  var L = root.LeiJar, X = root.LeiJarExport;
+  var belly = { live: {}, fine: {}, light: {} }, last = { key: "", S: null };
+
+  function fill(Pin) { var P = {}, k; for (k in L.DEFAULTS) P[k] = (Pin && Pin[k] !== undefined) ? Pin[k] : L.DEFAULTS[k]; return P; }
+  function snapH(P) { return Math.max(P.layer_h * 20, Math.round(P.height / P.layer_h) * P.layer_h); }
+  /* live: quick grid for the picture. fine: the grid the checks and the standard export use. light: a smaller export. */
+  function resFor(P, mode) {
+    var H = snapH(P), nT, target;
+    if (mode === "live") { nT = 360; target = Math.max(2, H / 260); }
+    else if (mode === "light") { nT = 360; target = Math.max(1.5, H / 500); }
+    else { nT = 720; target = Math.max(1, H / 700); }
+    return { nTheta: nT, dz: H / Math.round(H / target), exact: mode !== "live" };
+  }
+  function buildFor(Pin, mode) {
+    var P = fill(Pin), key = mode + JSON.stringify(P);
+    if (last.key === key) return last.S;
+    var st = belly[mode]; if (!(st.rBelly > 0) || !isFinite(st.rBelly)) delete st.rBelly;
+    var S = L.build(P, resFor(P, mode), st);
+    if (mode !== "live") { last.key = key; last.S = S; }
+    return S;
+  }
+  function summary(S, mode) {
+    return { M: S.M, P: S.P, H: S.D.H, foot_h: S.D.foot_h, rmax: S.rmax, NT: S.G.NT, NZ: S.G.NZ, dz: S.G.dz, mode: mode };
+  }
+  function f1(v) { return (Math.round(v * 10) / 10).toString(); }
+  function f2(v) { return (Math.round(v * 100) / 100).toString(); }
+  function readme(S, msg, names) {
+    var P = S.P, M = S.M, D = S.D, t = [];
+    t.push(msg.title + "   diameter " + f1(M.widest) + " x height " + f1(D.H) + " mm");
+    t.push("Made with the Lei Moon Jar tool, generator " + L.version + ". Units: mm.");
+    t.push("");
+    t.push("Files");
+    names.forEach(function (n) {
+      if (/-solid\.stl$/.test(n)) t.push("  " + n + "   closed solid: outer skin, flat bottom, flat top. Slice this one in vase (spiral) mode.");
+      else if (/-shell\.stl$/.test(n)) t.push("  " + n + "   hollow shell as printed: wall of one bead, solid base, open top. For viewing and renders.");
+      else if (/\.step$/.test(n)) t.push("  " + n + "   the same closed solid as B-spline surfaces through points 3 mm apart.");
+    });
+    t.push("  parameters.json   every setting and the measured results. Paste it into the tool to get this jar back.");
+    t.push("");
+    t.push("Print setup this jar was shaped for");
+    t.push("  bead width (wall) " + f2(P.bead_w) + " mm, layer height " + f2(P.layer_h) + " mm, nozzle bore " + f2(P.nozzle) + " mm");
+    t.push("  solid base " + P.base_layers + " layers = " + f1(D.foot_h) + " mm, then one continuous wall, " + M.layers_wall + " layers");
+    t.push("  overhang cap " + f1(P.max_overhang_deg) + " deg from vertical, bead turns no tighter than " + f2(P.min_radius_beads) + " bead widths");
+    t.push("");
+    t.push("Measured on the export grid, " + S.G.NT + " x " + S.G.NZ + " points");
+    t.push("  steepest lean " + f1(M.lean_max) + " deg at height " + f1(M.lean_max_z) + " mm; sideways step " + f2(M.step_max_mm) + " mm a layer = " + f1(M.step_max_pct) + "% of the bead");
+    t.push("  tightest bead-centre turn " + f1(M.path_radius_min) + " mm at height " + f1(M.path_radius_z) + " mm (target " + f1(M.path_radius_target) + " mm)");
+    t.push("  bead length " + f1(M.path_m) + " m; mass about " + f2(M.mass_kg) + " kg at " + f2(P.density) + " g/cm3 (wall " + f2(M.wall_kg) + ", base " + f2(M.base_kg) + ")");
+    t.push("  shortest layer loop " + Math.round(M.loop_min) + " mm = " + f1(M.layer_time_min) + " s at " + f1(P.print_speed) + " mm/s");
+    t.push("  holds about " + f1(M.capacity_l) + " litres to the neck");
+    t.push("");
+    t.push("These are geometry checks, not a print guarantee. Run your slicer's own overhang check before printing.");
+    return t.join("\r\n") + "\r\n";
+  }
+
+  function handle(msg) {
+    var S, out;
+    if (msg.cmd === "live") {
+      S = buildFor(msg.P, "live");
+      var vm = L.viewMesh(S), o = vm.outer, n = vm.inner;
+      out = { cmd: "live", seq: msg.seq, info: summary(S, "live"), mesh: vm };
+      return Promise.resolve({ out: out, transfer: [o.position.buffer, o.normal.buffer, o.lean.buffer, o.index.buffer, n.position.buffer, n.normal.buffer, n.lean.buffer, n.index.buffer] });
+    }
+    if (msg.cmd === "check") {
+      S = buildFor(msg.P, "fine");
+      return Promise.resolve({ out: { cmd: "check", seq: msg.seq, info: summary(S, "fine") }, transfer: [] });
+    }
+    if (msg.cmd === "export") {
+      var mode = msg.detail === "light" ? "light" : "fine";
+      S = buildFor(msg.P, mode);
+      var base = msg.base, files = [], what = msg.what || {};
+      if (what.solid) files.push({ name: base + "-solid.stl", data: L.stlSolid(S, 2) });
+      if (what.shell) files.push({ name: base + "-shell.stl", data: L.stlShell(S, 2) });
+      if (what.step) files.push({ name: base + ".step", data: X.stepSolid(S, { spacing: 3, name: msg.title, filename: base + ".step" }).text });
+      var names = files.map(function (f) { return f.name; });
+      files.push({ name: "parameters.json", data: JSON.stringify({ tool: "Lei Moon Jar tool", generator: L.version, units: "mm and degrees", params: S.P, look: msg.look || null, measured: S.M }, null, 1) });
+      files.push({ name: "README.txt", data: readme(S, msg, names) });
+      return X.makeZip(files).then(function (parts) {
+        var total = 0, i; for (i = 0; i < parts.length; i++) total += parts[i].length;
+        var u = new Uint8Array(total), off = 0; for (i = 0; i < parts.length; i++) { u.set(parts[i], off); off += parts[i].length; }
+        return { out: { cmd: "export", seq: msg.seq, info: summary(S, mode), zip: u.buffer, names: names }, transfer: [u.buffer] };
+      });
+    }
+    if (msg.cmd === "fix") {
+      // Nudge the design until the bead can follow it: give the lip a rounder nose, then soften the relief step by step.
+      var P = fill(msg.P), changed = {}, steps = 0, need = P.min_radius_beads + 0.6;
+      if (P.spout && P.spout_nose_beads < need) { P.spout_nose_beads = Math.round(need * 10) / 10; changed.spout_nose_beads = P.spout_nose_beads; }
+      for (; steps < 18; steps++) {
+        S = buildFor(P, "fine");
+        if (S.M.path_radius_min >= S.M.path_radius_target * 1.01) break;
+        P.soft_round_beads = Math.round(P.soft_round_beads * 1.08 * 1000) / 1000; P.soft_fine_beads = Math.round(P.soft_fine_beads * 1.08 * 1000) / 1000;
+        changed.soft_round_beads = P.soft_round_beads; changed.soft_fine_beads = P.soft_fine_beads;
+      }
+      S = buildFor(P, "fine");
+      return Promise.resolve({ out: { cmd: "fix", seq: msg.seq, info: summary(S, "fine"), changed: changed, steps: steps, fixed: S.M.path_radius_min >= S.M.path_radius_target - 0.05 }, transfer: [] });
+    }
+    return Promise.reject(new Error("unknown command " + msg.cmd));
+  }
+
+  root.LeiEngine = { handle: handle, resFor: resFor, fill: fill };
+  if (typeof WorkerGlobalScope !== "undefined" && root instanceof WorkerGlobalScope) {
+    root.onmessage = function (e) {
+      var m = e.data;
+      handle(m).then(function (r) { root.postMessage(r.out, r.transfer); }, function (err) {
+        root.postMessage({ cmd: "error", seq: m.seq, of: m.cmd, message: String(err && err.message || err) });
+      });
+    };
+  }
+  if (typeof module !== "undefined" && module.exports) module.exports = root.LeiEngine;
+})(typeof self !== "undefined" ? self : globalThis);
+</script>
+<script>
+/* Lei Moon Jar tool: the page. Uses LeiJar, LeiJarExport and LeiEngine (inlined above it) and three.js r128. */
+(() => {
+  "use strict";
+  const L = window.LeiJar, DEF = L.DEFAULTS;
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const f = (v, d = 1) => (v === null || v === undefined || !isFinite(v)) ? "–" : Number(v).toFixed(d);
+  const g = v => (v === null || v === undefined || !isFinite(v)) ? "–" : String(Math.round(v * 100) / 100);   // short form: 35, 35.5, 1.27
+  const keyOf = o => JSON.stringify(o);
+
+  /* ======================= looks ======================= */
+  // transmission colour of one 6 mm wall at normal incidence (linear); picture only
+  const TINTS = {
+    clear: { label: "Clear", rgb: [0.975, 0.982, 0.982], dot: "#dde5e3" },
+    sea: { label: "Sea glass", rgb: [0.74, 0.90, 0.86], dot: "#9fd3c4" },
+    smoke: { label: "Smoke", rgb: [0.52, 0.52, 0.53], dot: "#7a7a7d" },
+    amber: { label: "Amber", rgb: [0.95, 0.70, 0.36], dot: "#e3a457" },
+    rose: { label: "Rose", rgb: [0.96, 0.70, 0.77], dot: "#efa9bb" }
+  };
+  // studio set-ups, linear colours. keyBox = azimuth, elevation, half width, half height (radians), azimuth 0 = behind the jar
+  const LIGHTS = {
+    studio: { label: "Studio", back: [0.0095, 0.009, 0.0085], backTop: [0.0025, 0.0025, 0.0025], floor: [0.030, 0.027, 0.024], halo: [0.10, 0.07, 0.045],
+      key: [2.2, 2.1, 2.0], keyBox: [-2.2, 0.42, 0.42, 0.30], rim: [3.0, 2.95, 2.9], rimAz: 1.22, topL: [0.30, 0.30, 0.32], amb: [0.02, 0.019, 0.018], exposure: 1.15, ink: "rgba(243,238,230,0.72)" },
+    daylight: { label: "Daylight", back: [0.60, 0.60, 0.61], backTop: [0.72, 0.74, 0.77], floor: [0.50, 0.49, 0.47], halo: [0.06, 0.06, 0.06],
+      key: [1.6, 1.6, 1.6], keyBox: [-2.0, 0.5, 0.6, 0.4], rim: [0.5, 0.5, 0.5], rimAz: 1.22, topL: [1.2, 1.2, 1.25], amb: [0.40, 0.40, 0.41], exposure: 1.0, ink: "rgba(20,19,18,0.72)" },
+    sunset: { label: "Sunset", back: [0.055, 0.032, 0.026], backTop: [0.012, 0.014, 0.03], floor: [0.07, 0.045, 0.03], halo: [0.50, 0.24, 0.08],
+      key: [3.4, 1.8, 0.7], keyBox: [-1.5, 0.12, 0.25, 0.14], rim: [1.6, 0.9, 0.5], rimAz: 1.22, topL: [0.10, 0.13, 0.22], amb: [0.04, 0.028, 0.02], exposure: 1.1, ink: "rgba(243,238,230,0.72)" },
+    backlit: { label: "Backlit", back: [0.012, 0.012, 0.013], backTop: [0.003, 0.003, 0.004], floor: [0.03, 0.03, 0.03], halo: [0.85, 0.80, 0.72],
+      key: [0.6, 0.6, 0.6], keyBox: [-2.2, 0.42, 0.42, 0.30], rim: [4.0, 4.0, 4.0], rimAz: 1.0, topL: [0.2, 0.2, 0.2], amb: [0.03, 0.03, 0.03], exposure: 1.0, ink: "rgba(243,238,230,0.72)" }
+  };
+  const LOOK0 = { view: "petg", light: "studio", tint: "clear", clarity: 75, lines: true, spin: false };
+  const OUT0 = { solid: true, shell: false, step: true, detail: "fine" };
+
+  let P = Object.assign({}, DEF), look = Object.assign({}, LOOK0), out = Object.assign({}, OUT0), tab = "size";
+  let live = null, fine = null, fineKey = "", viewer = null, DL;          // DL: undefined while pending, null when this view has no downloads
+  const CTL = [];
+
+  /* ======================= controls ======================= */
+  const lipAz = () => (P.front_deg + P.spout_deg) * Math.PI / 180;
+  const TABS = [
+    { id: "size", label: "Size", groups: [{ items: [
+      { k: "height", label: "Height", unit: "mm", min: 200, max: 900, step: 2, d: 0, hint: M => `${M.layers} layers of ${g(P.layer_h)} mm` },
+      { k: "max_d", label: "Widest diameter", unit: "mm", min: 150, max: 600, step: 1, d: 0 },
+      { k: "foot_pct", label: "Foot", unit: "% of widest", min: 40, max: 85, step: 0.5, d: 1, hint: M => `Ø${f(M.foot_d, 0)} mm` },
+      { k: "neck_pct", label: "Neck", unit: "% of widest", min: 35, max: 80, step: 0.5, d: 1, hint: M => `Ø${f(M.neck_d, 0)} mm at its narrowest` },
+      { k: "belly_pct", label: "Widest point", unit: "% of height", min: 38, max: 60, step: 0.5, d: 1 },
+      { k: "neck_len_pct", label: "Neck length", unit: "% of height", min: 5, max: 22, step: 0.1, d: 1 }
+    ] }] },
+    { id: "print", label: "Print", groups: [{ items: [
+      { k: "bead_w", label: "Wall thickness = bead width", unit: "mm", min: 3, max: 14, step: 0.1, d: 1, hint: () => `${f(100 * P.bead_w / P.nozzle, 0)}% of the nozzle bore` },
+      { k: "layer_h", label: "Layer height", unit: "mm", min: 0.5, max: 4, step: 0.1, d: 1, hint: M => `${M.layers} layers` },
+      { k: "nozzle", label: "Nozzle bore", unit: "mm", min: 2, max: 10, step: 0.5, d: 1 },
+      { k: "max_overhang_deg", label: "Overhang limit", unit: "° from vertical", min: 20, max: 50, step: 0.5, d: 1, hint: M => `Steepest wall now ${f(M.lean_max)}°` },
+      { k: "min_radius_beads", label: "Tightest bead turn", unit: "× bead", min: 1, max: 4, step: 0.1, d: 1, hint: M => `Limit ${f(M.path_radius_target)} mm; tightest now ${f(M.path_radius_min)} mm` },
+      { k: "base_layers", label: "Solid base", unit: "layers", min: 2, max: 30, step: 1, d: 0, hint: () => `${g(P.base_layers * P.layer_h)} mm thick` },
+      { k: "print_speed", label: "Print speed", unit: "mm/s", min: 10, max: 150, step: 1, d: 0, hint: M => `Wall about ${f(M.wall_time_min, 0)} min; shortest layer ${f(M.layer_time_min, 0)} s` }
+    ] }] },
+    { id: "material", label: "Material", intro: "Transparent PETG or rPETG. Tint and clarity change the picture only. Density sets the mass: take it from your pellet datasheet.", groups: [{ items: [
+      { t: "seg", o: "look", k: "tint", label: "Tint", opts: Object.keys(TINTS).map(k => [k, TINTS[k].label, TINTS[k].dot]) },
+      { o: "look", k: "clarity", label: "Clarity", unit: "%", min: 0, max: 100, step: 1, d: 0, hint: () => "Lower it for the frosted look of heavy layer lines." },
+      { k: "density", label: "Density", unit: "g/cm³", min: 0.9, max: 1.6, step: 0.01, d: 2, hint: M => `Mass about ${f(M.mass_kg, 2)} kg` }
+    ] }] },
+    { id: "lip", label: "Lip", groups: [{ items: [
+      { t: "switch", k: "spout", label: "Pouring lip", sub: "The rim draws out into a rounded nose on its own keel, so it needs no support." },
+      { k: "spout_reach", label: "Reach past the rim", unit: "mm", min: 0, max: 80, step: 1, d: 0, lip: true, hint: M => M.spout_tip_r ? `Tip ${f(M.spout_tip_r, 0)} mm from the centre; the lip starts ${f(M.spout_z_start, 0)} mm up` : "" },
+      { k: "spout_lean_deg", label: "Keel lean", unit: "° from vertical", min: 10, max: 45, step: 0.5, d: 1, lip: true, hint: () => P.spout_lean_deg > P.max_overhang_deg - 1 ? `Held at ${g(P.max_overhang_deg - 1)}°, 1° under the overhang limit` : "" },
+      { k: "spout_nose_beads", label: "Nose roundness", unit: "× bead", min: 1.5, max: 6, step: 0.1, d: 1, lip: true, hint: () => `Nose radius ${f(P.spout_nose_beads * P.bead_w, 0)} mm` },
+      { k: "spout_width", label: "Width", unit: "×", min: 0.7, max: 2, step: 0.05, d: 2, lip: true, hint: M => M.spout_half_width_deg ? `${f(2 * M.spout_half_width_deg, 0)}° of the rim` : "" },
+      { k: "spout_deg", label: "Position", unit: "° from the front flower", min: -180, max: 180, step: 1, d: 0, lip: true }
+    ] }] },
+    { id: "pattern", label: "Pattern", groups: [
+      { title: "Lei of plumeria", items: [
+        { k: "n_flowers", label: "Flowers", unit: "", min: 3, max: 8, step: 1, d: 0 },
+        { k: "petal_pct", label: "Flower size", unit: "% of widest", min: 15, max: 40, step: 0.1, d: 1 },
+        { k: "lead", label: "Petal relief", unit: "mm", min: 0, max: 14, step: 0.1, d: 1 },
+        { k: "swirl", label: "Petal swirl", unit: "", min: 0, max: 1, step: 0.01, d: 2 },
+        { k: "lei_rise", label: "Lei height from the widest point", unit: "mm", min: -40, max: 40, step: 0.5, d: 1, scale: true },
+        { k: "lei_drape", label: "Lei drape", unit: "mm", min: 0, max: 40, step: 0.5, d: 1, scale: true },
+        { k: "front_deg", label: "Turn the lei", unit: "°", min: -180, max: 180, step: 1, d: 0, hint: () => P.spout ? "The lip turns with it." : "" }
+      ] },
+      { title: "Echo lines", items: [
+        { k: "echo_amp", label: "Depth", unit: "mm", min: 0, max: 3, step: 0.05, d: 2, hint: M => M.echo_amp < P.echo_amp - 0.01 ? `Held to ${f(M.echo_amp, 2)} mm by the bead-turn limit` : "" },
+        { k: "echo_pitch_beads", label: "Spacing", unit: "× bead", min: 3, max: 8, step: 0.1, d: 1, hint: M => `${f(M.echo_pitch, 1)} mm` },
+        { k: "echo_rings_up", label: "Lines above the lei", unit: "", min: 0, max: 6, step: 1, d: 0 }
+      ] },
+      { title: "Seigaiha waves", items: [
+        { k: "wave_amp", label: "Depth", unit: "mm", min: 0, max: 3, step: 0.05, d: 2, hint: M => M.wave_amp_max < P.wave_amp - 0.01 ? `Held to ${f(M.wave_amp_max, 2)} mm by the bead-turn limit` : "" },
+        { k: "wave_rings", label: "Rings in each wave", unit: "", min: 1, max: 3, step: 1, d: 0 },
+        { k: "wave_count", label: "Waves round the jar", unit: "", min: 0, max: 16, step: 1, d: 0, hint: M => P.wave_count ? "" : `0 lets the foot set it: ${M.wave_count} now` }
+      ] },
+      { title: "Smoothing", items: [
+        { k: "soft_round_beads", label: "Petals", unit: "× bead", min: 0.6, max: 3, step: 0.01, d: 2 },
+        { k: "soft_fine_beads", label: "Lines and waves", unit: "× bead", min: 0.3, max: 1.5, step: 0.01, d: 2 }
+      ] }
+    ] },
+    { id: "view", label: "View", groups: [{ items: [
+      { t: "seg", o: "look", k: "view", label: "Show", opts: [["petg", "Clear PETG"], ["lean", "Overhang map"]] },
+      { t: "seg", o: "look", k: "light", label: "Lighting", opts: Object.keys(LIGHTS).map(k => [k, LIGHTS[k].label]) },
+      { t: "switch", o: "look", k: "lines", label: "Layer lines" },
+      { t: "switch", o: "look", k: "spin", label: "Turntable" }
+    ] }], custom: viewExtras },
+    { id: "export", label: "Export", groups: [{ items: [
+      { t: "switch", o: "out", k: "solid", label: "Solid STL", sub: "Closed solid with a flat top, to slice as one continuous spiral wall." },
+      { t: "switch", o: "out", k: "shell", label: "Shell STL", sub: "The wall as printed, one bead thick, with the solid base." },
+      { t: "switch", o: "out", k: "step", label: "STEP", sub: "The same solid as smooth B-spline surfaces, for CAD and milling." },
+      { t: "seg", o: "out", k: "detail", label: "Detail", opts: [["fine", "Standard"], ["light", "Light"]], hint: () => detailHint() }
+    ] }], custom: exportExtras },
+    { id: "report", label: "Report", custom: p => p.insertAdjacentHTML("beforeend", `<div id="report"></div>`) }
+  ];
+
+  function detailHint() {
+    const E = window.LeiEngine; if (!E) return "";
+    const r = E.resFor(E.fill(P), out.detail);
+    return `${r.nTheta} points round, every ${g(r.dz)} mm up.` + (out.detail === "fine" ? " The checks use this grid." : " Smaller files, for viewing.");
+  }
+
+  function objOf(c) { const o = c.o || "P"; return o === "P" ? P : o === "look" ? look : out; }
+
+  function makeControl(c) {
+    const t = c.t || "range", id = `${c.o || "P"}-${c.k}`, box = document.createElement("div");
+    box.className = "ctl ctl-" + t;
+    if (t === "range") {
+      box.innerHTML = `<label for="r-${id}">${c.label}</label>` +
+        `<span class="num"><input id="n-${id}" type="number" inputmode="decimal" min="${c.min}" max="${c.max}" step="${c.step}" aria-label="${c.label}, value"><span class="unit">${c.unit || ""}</span></span>` +
+        `<input id="r-${id}" type="range" min="${c.min}" max="${c.max}" step="${c.step}">` +
+        `<p class="hint" id="h-${id}" hidden></p>`;
+      const r = box.querySelector("input[type=range]"), n = box.querySelector("input[type=number]");
+      r.addEventListener("input", () => setV(c, Number(r.value)));
+      n.addEventListener("change", () => { const v = parseFloat(n.value); if (isFinite(v)) setV(c, clamp(v, c.min, c.max)); else refreshControl(c); });
+    } else if (t === "switch") {
+      box.innerHTML = `<label for="s-${id}"><span class="lbl">${c.label}</span>${c.sub ? `<span class="sub">${c.sub}</span>` : ""}</label><input id="s-${id}" type="checkbox" role="switch">`;
+      box.querySelector("input").addEventListener("change", e => setV(c, (c.o || "P") === "P" ? (e.target.checked ? 1 : 0) : e.target.checked));
+    } else {
+      box.innerHTML = `<p class="seg-label" id="l-${id}">${c.label}</p><div class="seg" role="group" aria-labelledby="l-${id}"></div><p class="hint" id="h-${id}" hidden></p>`;
+      const seg = box.querySelector(".seg");
+      c.opts.forEach(([v, lab, dot]) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.dataset.v = v; b.setAttribute("aria-pressed", "false");
+        if (dot) { const s = document.createElement("span"); s.className = "dot"; s.style.background = dot; b.appendChild(s); }
+        b.appendChild(document.createTextNode(lab));
+        b.addEventListener("click", () => setV(c, v));
+        seg.appendChild(b);
+      });
+    }
+    c.el = box; CTL.push(c);
+    return box;
+  }
+
+  function setV(c, v) {
+    const o = c.o || "P", obj = objOf(c);
+    if (!c.t || c.t === "range") { if (c.step >= 1) v = Math.round(v); if (c.scale) v = v * 450 / P.height; }
+    obj[c.k] = v;
+    if (o === "P") { refreshAll(); requestLive(); }
+    else if (o === "look") { refreshAll(); applyLook(); }
+    else { refreshAll(); }
+    persist();
+  }
+
+  function refreshControl(c) {
+    const box = c.el, v0 = objOf(c)[c.k];
+    if (!c.t || c.t === "range") {
+      const v = c.scale ? v0 * P.height / 450 : v0, r = box.querySelector("input[type=range]"), n = box.querySelector("input[type=number]");
+      r.value = v; if (document.activeElement !== n) n.value = f(v, c.d);
+      r.style.setProperty("--fill", (100 * (clamp(v, c.min, c.max) - c.min) / (c.max - c.min)) + "%");
+      const off = !!c.lip && !P.spout; r.disabled = n.disabled = off; box.classList.toggle("off", off);
+    } else if (c.t === "switch") box.querySelector("input").checked = !!v0;
+    else box.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === String(v0))));
+  }
+  function refreshAll() { CTL.forEach(refreshControl); refreshHints(); }
+  function refreshHints() {
+    const M = (fine && fineKey === keyOf(P) ? fine : live || {}).M;
+    CTL.forEach(c => {
+      if (!c.hint) return; const h = c.el.querySelector(".hint"); if (!h) return;
+      let s = ""; try { s = c.hint(M || null) || ""; } catch (e) { s = ""; }
+      h.textContent = s; h.hidden = !s;
+    });
+  }
+
+  function buildUI() {
+    const nav = $("#tabs"), panes = $("#panes");
+    TABS.forEach(t => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "tab"; b.id = "t-" + t.id; b.textContent = t.label;
+      b.setAttribute("role", "tab"); b.setAttribute("aria-controls", "p-" + t.id);
+      b.addEventListener("click", () => openTab(t.id));
+      nav.appendChild(b);
+      const p = document.createElement("section");
+      p.className = "pane"; p.id = "p-" + t.id; p.setAttribute("role", "tabpanel"); p.setAttribute("aria-labelledby", "t-" + t.id);
+      if (t.intro) { const i = document.createElement("p"); i.className = "intro"; i.textContent = t.intro; p.appendChild(i); }
+      (t.groups || []).forEach(gr => {
+        const gs = document.createElement("div"); gs.className = "group";
+        if (gr.title) { const h = document.createElement("h3"); h.textContent = gr.title; gs.appendChild(h); }
+        gr.items.forEach(c => gs.appendChild(makeControl(c)));
+        p.appendChild(gs);
+      });
+      if (t.custom) t.custom(p);
+      panes.appendChild(p);
+    });
+    nav.addEventListener("keydown", e => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const i = TABS.findIndex(t => t.id === tab), n = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length].id;
+      openTab(n); $("#t-" + n).focus(); e.preventDefault();
+    });
+    // stage controls
+    $$("#stage [data-view]").forEach(b => b.addEventListener("click", () => { look.view = b.dataset.view; refreshAll(); applyLook(); persist(); }));
+    $("#b-home").addEventListener("click", () => viewer && viewer.preset("home"));
+    $("#pill").addEventListener("click", () => openTab("report"));
+    $("#b-fix").addEventListener("click", fixIt);
+    $$("#cams [data-cam]").forEach(b => b.addEventListener("click", () => viewer && viewer.preset(b.dataset.cam)));
+    $("#b-png").addEventListener("click", savePng);
+    $("#b-zip").addEventListener("click", doExport);
+    $("#b-copy").addEventListener("click", copyParams);
+    $("#b-load").addEventListener("click", () => { $("#load-box").hidden = false; $("#t-json").focus(); });
+    $("#b-cancel").addEventListener("click", () => { $("#load-box").hidden = true; });
+    $("#b-apply").addEventListener("click", loadParams);
+    $("#b-reset").addEventListener("click", () => { P = Object.assign({}, DEF); refreshAll(); requestLive(); persist(); say("#par-msg", "Back to the Lei Moon Jar as designed."); });
+  }
+
+  function viewExtras(p) {
+    p.insertAdjacentHTML("beforeend",
+      `<div class="group"><h3>Camera</h3><div class="seg" id="cams"><button type="button" data-cam="lip">Lip side</button><button type="button" data-cam="front">Lip front</button><button type="button" data-cam="top">From above</button><button type="button" data-cam="home">Reset</button></div></div>` +
+      `<div class="group"><h3>Image</h3><button type="button" class="btn" id="b-png">Save image (PNG)</button><p class="msg" id="png-msg" aria-live="polite"></p></div>`);
+  }
+  function exportExtras(p) {
+    p.insertAdjacentHTML("beforeend",
+      `<div class="group"><button type="button" class="btn primary wide" id="b-zip">Download .zip</button><p class="msg" id="zip-msg" aria-live="polite"></p>` +
+      `<p class="fine">Each download is a .zip with the files you picked, parameters.json and a README with the checks.</p></div>` +
+      `<div class="group"><h3>Parameters</h3><div class="row"><button type="button" class="btn" id="b-copy">Copy</button><button type="button" class="btn" id="b-load">Load…</button><button type="button" class="btn" id="b-reset">Reset to the Lei Moon Jar</button></div>` +
+      `<div id="load-box" hidden><label class="sr" for="t-json">Parameters</label><textarea id="t-json" rows="6" spellcheck="false" placeholder="Paste parameters.json or copied parameters here"></textarea>` +
+      `<div class="row"><button type="button" class="btn primary" id="b-apply">Apply</button><button type="button" class="btn" id="b-cancel">Cancel</button></div></div>` +
+      `<p class="msg" id="par-msg" aria-live="polite"></p></div>`);
+  }
+
+  function openTab(id) {
+    if (!TABS.some(t => t.id === id)) id = "size";
+    tab = id;
+    $$(".tab").forEach(b => { const on = b.id === "t-" + id; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
+    $$(".pane").forEach(p => { p.hidden = p.id !== "p-" + id; });
+    $("#panes").scrollTop = 0;
+    const tb = $("#t-" + id); if (tb && tb.scrollIntoView) tb.scrollIntoView({ block: "nearest", inline: "nearest" });
+    persist();
+  }
+
+  /* ======================= engine (Web Workers, page fallback) ======================= */
+  const Engine = (() => {
+    const src = ["js-core", "js-exporters", "js-engine"].map(id => document.getElementById(id).textContent).join("\n;\n");
+    const waiting = new Map(), workers = {};
+    let fallback = false, seq = 0, url = null;
+    function runHere(msg) {
+      return new Promise((res, rej) => setTimeout(() => {
+        try { window.LeiEngine.handle(msg).then(r => res(r.out), rej); } catch (e) { rej(e); }
+      }, 0));
+    }
+    function goFallback() {
+      if (fallback) return; fallback = true;
+      Object.values(workers).forEach(w => { try { w.terminate(); } catch (e) { /* gone */ } });
+      const pend = Array.from(waiting.values()); waiting.clear();
+      pend.forEach(h => runHere(h.msg).then(h.resolve, h.reject));
+    }
+    function make() {
+      const w = new Worker(url);
+      w.onmessage = e => { const m = e.data, h = waiting.get(m.seq); if (!h) return; waiting.delete(m.seq); if (m.cmd === "error") h.reject(new Error(m.message)); else h.resolve(m); };
+      w.onerror = ev => { if (ev && ev.preventDefault) ev.preventDefault(); goFallback(); };
+      return w;
+    }
+    try { url = URL.createObjectURL(new Blob([src], { type: "text/javascript" })); workers.live = make(); workers.heavy = make(); }
+    catch (e) { fallback = true; }
+    function call(lane, msg) {
+      msg.seq = ++seq;
+      if (fallback) return runHere(msg);
+      return new Promise((resolve, reject) => { waiting.set(msg.seq, { resolve, reject, msg }); workers[lane].postMessage(msg); });
+    }
+    return { call };
+  })();
+
+  let liveBusy = false, liveAgain = false, checkTimer = 0;
+  function requestLive() {
+    setPill("checking");
+    clearTimeout(checkTimer); checkTimer = setTimeout(runCheck, 450);
+    if (liveBusy) { liveAgain = true; return; }
+    liveBusy = true;
+    Engine.call("live", { cmd: "live", P: Object.assign({}, P) }).then(m => {
+      live = m.info;
+      if (viewer) viewer.setMesh(m.mesh, m.info);
+      if (!(fine && fineKey === keyOf(P))) showInfo(live, false);
+    }).catch(showError).finally(() => {
+      liveBusy = false;
+      if (liveAgain) { liveAgain = false; requestLive(); }
+    });
+  }
+  function runCheck() {
+    const p = Object.assign({}, P), k = keyOf(p);
+    Engine.call("heavy", { cmd: "check", P: p }).then(m => {
+      if (keyOf(P) !== k) return;
+      fine = m.info; fineKey = k; showInfo(fine, true);
+    }).catch(showError);
+  }
+
+  /* ======================= checks and report ======================= */
+  function classify(M, p) {
+    const items = [];
+    if (M.lean_max > p.max_overhang_deg + 0.05) items.push({ lv: 2, k: "lean", t: `The wall leans ${f(M.lean_max)}°, past the ${g(p.max_overhang_deg)}° limit.` });
+    if (M.path_radius_min < M.path_radius_target - 0.05) items.push({ lv: 2, k: "turn", t: `The bead has to turn on a ${f(M.path_radius_min)} mm radius, ${f(M.path_radius_z, 0)} mm up. The limit is ${f(M.path_radius_target)} mm.` });
+    if (Math.max(M.foot_lean, M.shoulder_lean) > p.max_overhang_deg + 0.01) items.push({ lv: 1, k: "form", t: "The plain form leans more than the limit, so the wall was pulled in to stay printable. A taller jar, a wider foot or a wider neck keeps the shape you set." });
+    const ratio = p.bead_w / p.nozzle;
+    if (ratio < 1.2 - 1e-9 || ratio > 1.8 + 1e-9) items.push({ lv: 1, k: "bead", t: `The bead is ${f(100 * ratio, 0)}% of the nozzle bore. Savonia's LFAM guidance gives 120 to 180%.` });
+    if (p.layer_h > 0.67 * p.bead_w) items.push({ lv: 1, k: "layer", t: "The layer is taller than two thirds of the bead width." });
+    if (M.relaxed_by > 3) items.push({ lv: 0, k: "flat", t: `Relief was flattened by up to ${f(M.relaxed_by)} mm to stay under the overhang limit.` });
+    const worst = items.reduce((a, b) => Math.max(a, b.lv), 0);
+    return { state: worst === 2 ? "fail" : worst === 1 ? "warn" : "good", items };
+  }
+
+  const ICON = {
+    good: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5" fill="currentColor"/><path d="M4.6 8.4l2.2 2.2 4.6-4.9" fill="none" stroke="#0f0e0d" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    warn: `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.2l7.2 13.2H.8z" fill="currentColor"/><path d="M8 5.6v4.3" stroke="#0f0e0d" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="12.2" r="1" fill="#0f0e0d"/></svg>`,
+    fail: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5" fill="currentColor"/><path d="M5.3 5.3l5.4 5.4M10.7 5.3l-5.4 5.4" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/></svg>`,
+    info: `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 7v4.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.8" r="0.95" fill="currentColor"/></svg>`,
+    checking: `<svg viewBox="0 0 16 16" aria-hidden="true" class="spin"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-opacity=".3" stroke-width="2"/><path d="M8 2a6 6 0 0 1 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  };
+  const PILL = { checking: "Checking", good: "Printable", warn: "Printable, see notes", fail: "Outside limits" };
+  function setPill(state, c) {
+    const pill = $("#pill");
+    pill.dataset.state = state;
+    $("#pill-ic").innerHTML = ICON[state];
+    $("#pill-text").textContent = PILL[state];
+    $("#b-fix").hidden = !(state === "fail" && c && c.items.some(i => i.k === "turn"));
+  }
+
+  function showInfo(info, isFine) {
+    const M = info.M, p = info.P;
+    $("#dims").textContent = `Ø${f(M.widest, 0)} × ${f(M.height, 0)} mm`;
+    $("#k-lean").innerHTML = `${f(M.lean_max)}°<small> / ${g(p.max_overhang_deg)}°</small>`;
+    $("#k-turn").innerHTML = `${f(M.path_radius_min)}<small> / ${g(M.path_radius_target)} mm</small>`;
+    $("#k-mass").textContent = `${f(M.mass_kg, 2)} kg`;
+    $("#k-cap").textContent = `${f(M.capacity_l, 1)} L`;
+    $("#kpis").classList.toggle("stale", !isFine);
+    refreshHints();
+    if (isFine) { const c = classify(M, p); setPill(c.state, c); }
+    renderReport(info, isFine);
+  }
+
+  function row(term, val, st) { return `<div class="r"><dt>${term}</dt><dd>${val}</dd><span class="st ${st || ""}">${st ? ICON[st === "ok" ? "good" : st] : ""}</span></div>`; }
+  function renderReport(info, isFine) {
+    const M = info.M, p = info.P, c = classify(M, p), el = $("#report");
+    if (!el) return;
+    const leanOk = M.lean_max <= p.max_overhang_deg + 0.05, turnOk = M.path_radius_min >= M.path_radius_target - 0.05;
+    const notes = c.items.map(i => `<li class="lv${i.lv}"><span class="st ${i.lv === 2 ? "fail" : i.lv === 1 ? "warn" : "info"}">${ICON[i.lv === 2 ? "fail" : i.lv === 1 ? "warn" : "info"]}</span><span>${i.t}</span></li>`).join("");
+    el.innerHTML =
+      `<div class="rep-head"><p class="verdict ${isFine ? c.state : "checking"}">${isFine ? { good: "Every check passes.", warn: "Printable. Read the notes.", fail: "Outside the limits." }[c.state] : "Live preview. The full check follows."}</p>` +
+      `${isFine && c.items.some(i => i.k === "turn") ? `<button type="button" class="btn small" id="b-fix2">Fix it</button>` : ""}</div>` +
+      (notes ? `<ul class="notes">${notes}</ul>` : "") +
+      `<p class="msg" id="rep-msg" aria-live="polite"></p>` +
+      `<h3>Printability</h3><dl class="rep">` +
+      row("Steepest wall lean", `${f(M.lean_max)}° at ${f(M.lean_max_z, 0)} mm up; limit ${g(p.max_overhang_deg)}°`, leanOk ? "ok" : "fail") +
+      row("Sideways step per layer", `${f(M.step_max_mm, 2)} mm, ${f(M.step_max_pct, 0)}% of the bead`) +
+      row("Wall leaning over 30°", `${f(M.share_over_30, 1)}% of the surface`) +
+      row("Tightest bead turn", `${f(M.path_radius_min)} mm radius at ${f(M.path_radius_z, 0)} mm up; limit ${f(M.path_radius_target)} mm`, turnOk ? "ok" : "fail") +
+      row("Layers", `${M.layers}: ${M.layers_base} solid base, ${M.layers_wall} wall. Each is one closed outline round the axis, so the wall can print as one spiral.`, "ok") +
+      row("Shortest layer", `${f(M.loop_min, 0)} mm loop, ${f(M.layer_time_min, 1)} s at ${g(p.print_speed)} mm/s, ${f(M.loop_min_z, 0)} mm up`) +
+      row("Bead to nozzle", `${f(p.bead_w, 1)} mm bead from a ${g(p.nozzle)} mm bore, ${f(100 * p.bead_w / p.nozzle, 0)}%`, c.items.some(i => i.k === "bead") ? "warn" : "") +
+      `</dl><h3>Size</h3><dl class="rep">` +
+      row("Widest", `Ø${f(M.widest, 1)} mm`) +
+      row("Height", `${f(M.height, 0)} mm, ${M.layers} layers of ${g(p.layer_h)} mm`) +
+      row("Foot", `Ø${f(M.foot_d, 1)} mm`) +
+      row("Neck", `Ø${f(M.neck_d, 1)} mm at ${f(M.neck_z, 0)} mm up`) +
+      row("Rim, average", `Ø${f(M.lip_d, 1)} mm`) +
+      row("Pouring lip", p.spout && M.spout_tip_r ? `tip ${f(M.spout_tip_r, 1)} mm from the centre, starts ${f(M.spout_z_start, 0)} mm up, ${f(2 * M.spout_half_width_deg, 0)}° wide at the rim` : "off") +
+      row("Holds", `about ${f(M.capacity_l, 1)} L up to the neck`) +
+      `</dl><h3>Material and time</h3><dl class="rep">` +
+      row("Bead length, wall", `${f(M.path_m, 1)} m`) +
+      row("Mass", `about ${f(M.mass_kg, 2)} kg (wall ${f(M.wall_kg, 2)}, base ${f(M.base_kg, 2)}) at ${g(p.density)} g/cm³`) +
+      row("Flow", `${f(M.flow_kg_h, 2)} kg/h at ${g(p.print_speed)} mm/s`) +
+      row("Wall print time", `about ${f(M.wall_time_min, 0)} min (bead length ÷ speed; base, travel and slow-downs not included)`) +
+      `</dl><h3>Stability</h3><dl class="rep">` +
+      row("Centre of mass", `${f(M.com_z, 0)} mm up`) +
+      row("Tips over", `past ${f(M.tip_angle, 0)}° of tilt, empty`) +
+      `</dl><p class="fine">${isFine ? `Checked on ${info.NT} × ${info.NZ} points, the same grid as the Standard export.` : `Preview grid, ${info.NT} × ${info.NZ} points.`} These are geometry checks. Run your slicer's own preview before printing.</p>`;
+    const b2 = $("#b-fix2"); if (b2) b2.addEventListener("click", fixIt);
+  }
+
+  const FIXNAMES = { spout_nose_beads: ["Lip nose", "× bead", 1], soft_round_beads: ["Petal smoothing", "× bead", 2], soft_fine_beads: ["Line smoothing", "× bead", 2] };
+  async function fixIt() {
+    $$("#b-fix, #b-fix2").forEach(b => { b.disabled = true; });
+    setPill("checking"); $("#pill-text").textContent = "Fixing";
+    try {
+      const m = await Engine.call("heavy", { cmd: "fix", P: Object.assign({}, P) });
+      Object.assign(P, m.changed); refreshAll(); requestLive(); persist();
+      const what = Object.keys(m.changed).map(k => FIXNAMES[k] ? `${FIXNAMES[k][0]} ${f(m.changed[k], FIXNAMES[k][2])} ${FIXNAMES[k][1]}` : k).join(", ");
+      toast(m.fixed ? `Fixed. ${what}.` : `Closer, not there yet. ${what}. Try a lower petal relief.`);
+    } catch (e) { showError(e); }
+    finally { $$("#b-fix, #b-fix2").forEach(b => { b.disabled = false; }); }
+  }
+
+  /* ======================= files ======================= */
+  let dlReady = null;
+  function initDownloads() {
+    dlReady = (async () => {
+      await Promise.resolve();
+      try { DL = (window.claude && typeof window.claude.use === "function") ? await window.claude.use("downloads") : null; }
+      catch (e) { DL = null; }
+      if (!DL) DL = browserDownloads();          // standalone site: plain browser download
+      if (!DL) {
+        ["#zip-msg", "#png-msg"].forEach(s => say(s, "Downloads aren't available in this view. Open the page in Claude to save files."));
+        $$("#b-zip, #b-png").forEach(b => { b.disabled = true; });
+      }
+    })();
+  }
+  function browserDownloads() {
+    if (typeof document === "undefined" || !("download" in document.createElement("a"))) return null;
+    return { save: ({ filename, data }) => new Promise(res => {
+      const url = URL.createObjectURL(data), a = document.createElement("a");
+      a.href = url; a.download = filename; a.rel = "noopener"; a.style.display = "none";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      res({ status: "saved" });
+    }) };
+  }
+  async function offer(filename, data) {
+    if (DL === undefined && dlReady) await dlReady;
+    if (!DL) return "Downloads aren't available in this view.";
+    try { const r = await DL.save({ filename, data }); return r && r.status === "delivered" ? `Sent ${filename}.` : `Saved ${filename}.`; }
+    catch (e) {
+      const code = e && e.code;
+      if (code === "declined") return "Download cancelled.";
+      if (code === "rate_limited") return "A save prompt is already open. Finish that one first.";
+      if (code === "too_large") return "That file is too large here. Try Light detail or fewer files.";
+      return "The download didn't go through" + (e && e.message ? `: ${e.message}` : ".");
+    }
+  }
+  const baseName = () => { const M = (fine || live || {}).M; return `lei-moon-jar-${M ? f(M.widest, 0) : P.max_d}x${M ? f(M.height, 0) : P.height}`; };
+  async function doExport() {
+    if (!out.solid && !out.shell && !out.step) { say("#zip-msg", "Pick at least one file."); return; }
+    const b = $("#b-zip"); b.disabled = true; say("#zip-msg", "Building the files…");
+    try {
+      const base = baseName();
+      const m = await Engine.call("heavy", { cmd: "export", P: Object.assign({}, P), what: { solid: out.solid, shell: out.shell, step: out.step }, detail: out.detail, base, title: "Lei Moon Jar", look: Object.assign({}, look) });
+      const mb = (m.zip.byteLength / 1e6).toFixed(1);
+      say("#zip-msg", `${mb} MB ready.`);
+      const res = await offer(base + ".zip", new Blob([m.zip], { type: "application/zip" }));
+      say("#zip-msg", res.startsWith("Saved") || res.startsWith("Sent") ? `${res} ${mb} MB: ${m.names.join(", ")}, parameters.json, README.txt.` : res);
+    } catch (e) { say("#zip-msg", "Export failed: " + (e && e.message || e)); }
+    finally { b.disabled = !DL; }
+  }
+  async function savePng() {
+    if (!viewer) { say("#png-msg", "The 3D view isn't available on this device."); return; }
+    const M = (fine || live || {}).M, t = TINTS[look.tint] || TINTS.clear;
+    const cap = `Lei Moon Jar · Ø${M ? f(M.widest, 0) : "–"} × ${M ? f(M.height, 0) : "–"} mm · ${look.view === "lean" ? "wall lean from vertical" : `${t.label.toLowerCase()} PETG`} · ${g(P.bead_w)} mm wall, ${g(P.layer_h)} mm layers`;
+    const c = viewer.snapshot(1500, 2000, cap, LIGHTS[look.light].ink);
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    if (!blob) { say("#png-msg", "Couldn't make the image on this device."); return; }
+    say("#png-msg", await offer(`${baseName()}-${look.view === "lean" ? "overhang-map" : look.light}.png`, blob));
+  }
+  function copyParams() {
+    const txt = JSON.stringify({ tool: "Lei Moon Jar tool", params: P, look }, null, 1);
+    const fallbackBox = () => { $("#load-box").hidden = false; const t = $("#t-json"); t.value = txt; t.focus(); t.select(); say("#par-msg", "Copy the text in the box."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(() => say("#par-msg", "Parameters copied."), fallbackBox);
+    else fallbackBox();
+  }
+  function loadParams() {
+    let o; try { o = JSON.parse($("#t-json").value); } catch (e) { say("#par-msg", "That isn't valid JSON. Paste parameters.json or copied parameters."); return; }
+    const src = o && o.params ? o.params : o, n = sanitizeInto(P, src);
+    if (o && o.look) Object.assign(look, pick(o.look, LOOK0));
+    $("#load-box").hidden = true; refreshAll(); applyLook(); requestLive(); persist();
+    say("#par-msg", n ? `Loaded ${n} settings.` : "No settings found in that text.");
+  }
+
+  /* ======================= state ======================= */
+  const RANGE = {}; TABS.forEach(t => (t.groups || []).forEach(gr => gr.items.forEach(c => { if ((c.o || "P") === "P" && (!c.t || c.t === "range")) RANGE[c.k] = c; })));
+  function sanitizeInto(target, src) {
+    let n = 0; if (!src || typeof src !== "object") return 0;
+    Object.keys(DEF).forEach(k => {
+      const v = src[k];
+      if (Array.isArray(DEF[k])) { if (Array.isArray(v) && v.length && v.every(x => isFinite(x))) { target[k] = v.map(Number); n++; } return; }
+      if (k === "spout" && typeof v === "boolean") { target.spout = v ? 1 : 0; n++; return; }
+      if (typeof v !== "number" || !isFinite(v)) return;
+      const c = RANGE[k];
+      if (c) target[k] = c.scale ? clamp(v, -100, 100) : clamp(v, c.min, c.max);
+      else target[k] = clamp(v, -1000, 1000);
+      n++;
+    });
+    if (typeof src.spout === "number") target.spout = src.spout ? 1 : 0;
+    return n;
+  }
+  function pick(src, base) { const o = {}; if (!src) return o; Object.keys(base).forEach(k => { if (src[k] !== undefined && typeof src[k] === typeof base[k]) o[k] = src[k]; }); return o; }
+  const STORE = "lei-moon-jar.v2";
+  let saveT = 0;
+  function persist() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ P, look, out, tab })); } catch (e) { /* private mode */ } }, 300); }
+  function restore() { try { return JSON.parse(localStorage.getItem(STORE) || "null"); } catch (e) { return null; } }
+
+  /* ======================= small UI helpers ======================= */
+  function say(sel, text) { const el = $(sel); if (el) el.textContent = text; }
+  let toastT = 0;
+  function toast(text) { const t = $("#toast"); t.textContent = text; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 5200); }
+  function showError(e) { console.error(e); toast("Something went wrong: " + (e && e.message || e)); }
+  function applyLook() {
+    $$("#stage [data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === look.view)));
+    $("#legend").hidden = look.view !== "lean";
+    $("#hint").classList.toggle("gone", look.view === "lean" || $("#hint").dataset.used === "1");
+    renderLegend();
+    if (viewer) viewer.setLook(look);
+  }
+  function renderLegend() {
+    const cap = P.max_overhang_deg, ticks = [0, 10, 20, 30, 40].filter(v => v < cap - 8).concat([cap]);
+    $("#legend-ticks").innerHTML = ticks.map(v => `<span style="left:${(100 * v / cap).toFixed(2)}%">${g(v)}°${v === cap ? " limit" : ""}</span>`).join("");
+  }
+
+  /* ======================= 3D view ======================= */
+  const VS = `
+attribute float lean;
+varying vec3 vW; varying vec3 vN; varying vec3 vO; varying float vLean;
+void main() {
+  vO = position; vLean = lean;
+  vec4 w = modelMatrix * vec4(position, 1.0);
+  vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+  const ENV = `
+uniform mat3 uEnvFrame;
+uniform vec3 uBack; uniform vec3 uBackTop; uniform vec3 uFloor; uniform vec3 uHalo;
+uniform vec3 uKey; uniform vec4 uKeyBox; uniform vec3 uRim; uniform float uRimAz; uniform vec3 uTopL; uniform vec3 uAmb;
+uniform float uExposure;
+float wrapA(float a) { return mod(a + 3.14159265, 6.28318531) - 3.14159265; }
+// the studio, as seen in direction dw: backdrop and floor, a glow behind the jar, two tall strip lights behind it, a softbox in front
+vec3 env(vec3 dw) {
+  vec3 d = uEnvFrame * dw;
+  float el = asin(clamp(d.y, -1.0, 1.0));
+  float az = atan(d.x, -d.z);
+  vec3 c = mix(uFloor, mix(uBack, uBackTop, smoothstep(0.0, 1.1, el)), smoothstep(-0.06, 0.03, el));
+  c += uHalo * exp(-az * az / 0.20 - (el - 0.06) * (el - 0.06) / 0.10);
+  c += uTopL * smoothstep(0.6, 1.3, el);
+  c += uRim * exp(-pow((abs(az) - uRimAz) / 0.065, 2.0)) * smoothstep(-0.3, 0.0, el) * (1.0 - smoothstep(0.5, 0.8, el));
+  vec2 q = abs(vec2(wrapA(az - uKeyBox.x), el - uKeyBox.y)) / uKeyBox.zw;
+  c += uKey * (1.0 - smoothstep(0.7, 1.0, max(q.x, q.y)));
+  return c;
+}
+vec3 tm(vec3 x) { return vec3(1.0) - exp(-x * uExposure); }
+uniform vec3 uJarC; uniform float uJarR; uniform float uFootR; uniform float uJarH; uniform vec2 uShadow;
+// the set behind the jar: backdrop with a glow, and a floor that fades into it like a sweep
+vec3 backdrop(vec3 ro, vec3 rd) {
+  float el = asin(clamp(rd.y, -1.0, 1.0));
+  float ang = acos(clamp(dot(rd, normalize(uJarC - ro)), -1.0, 1.0));
+  vec3 back = mix(uBack, uBackTop, smoothstep(0.0, 0.7, el)) + uHalo * 1.3 * exp(-ang * ang / 0.05);
+  if (rd.y > -1e-5) return back;
+  float t = -ro.y / rd.y; vec2 q = (ro + rd * t).xz; float r = length(q);
+  vec3 fl = uFloor * (0.6 + 1.2 * exp(-r * r / (8.0 * uJarR * uJarR)));
+  vec2 c = q - uShadow * uJarH * 0.3;     // a clear jar's shadow: light, with a soft bright core
+  vec2 e = vec2(dot(c, uShadow) / 1.8, dot(c, vec2(-uShadow.y, uShadow.x)));
+  float d = length(e) / uJarR;
+  float sh = 1.0 - 0.32 * (1.0 - smoothstep(0.4, 1.3, d));
+  float ao = 1.0 - 0.55 * (1.0 - smoothstep(uFootR, uFootR * 1.18, r));
+  fl = fl * sh * ao + uKey * exp(-d * d / 0.06) * 0.0072;
+  return mix(fl, back, smoothstep(3.0 * uJarR, 12.0 * uJarR, r));
+}
+vec3 ldir(float az, float el) { return vec3(sin(az) * cos(el), sin(el), -cos(az) * cos(el)); }
+// light reaching a thin frosted wall from either side, over pi: what the layer interfaces scatter
+vec3 glowIrr(vec3 nw) {
+  vec3 n = uEnvFrame * nw;
+  vec3 e = uAmb;
+  e += uKey * (4.0 * uKeyBox.z * uKeyBox.w) * abs(dot(n, ldir(uKeyBox.x, uKeyBox.y))) * 0.3183;
+  e += uRim * 0.104 * (abs(dot(n, ldir(uRimAz, 0.25))) + abs(dot(n, ldir(-uRimAz, 0.25)))) * 0.3183;
+  e += uTopL * abs(n.y) * 0.3183;
+  e += uHalo * 0.6 * abs(n.z) * 0.3183;
+  return e;
+}
+`;
+  // Each skin is drawn twice: once to dim what is behind it (transmission), once to add what it reflects and scatters.
+  const PETG_FS = `
+uniform float uPass; uniform float uLayerH; uniform float uGroove; uniform float uFootH; uniform float uLines; uniform float uHaze; uniform vec3 uTint;
+varying vec3 vW; varying vec3 vN; varying vec3 vO;
+// bead side: a rounded rectangle (superellipse, n = 4), uGroove deep, one layer tall; surface tilt at phase p through the layer
+float tiltAt(float p) {
+  float u = clamp(2.0 * fract(p) - 1.0, -0.995, 0.995), a = abs(u);
+  return sign(u) * atan(uGroove * a * a * a * pow(1.0 - a * a * a * a, -0.75) / (0.5 * uLayerH));
+}
+void main() {
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 V = normalize(cameraPosition - vW);
+  float zl = (vO.z - uFootH) / uLayerH;
+  float s = zl + atan(vO.y, vO.x) * 0.15915494;          // vase mode: one continuous spiral, a layer per turn
+  float s2 = zl + atan(-vO.y, -vO.x) * 0.15915494;       // same spiral, seam on the other side, for the pixel footprint
+  float spread = min(min(fwidth(s), fwidth(s2)), 1.0);
+  vec3 Tv = vec3(0.0, 1.0, 0.0) - N * N.y; float tl = length(Tv);
+  float wall = uLines * smoothstep(0.2, 0.45, tl); Tv /= max(tl, 1e-4);
+  vec3 R = vec3(0.0); float F = 0.0;
+  float near = 1.0 - smoothstep(0.3, 0.75, spread);
+  for (int k = 0; k < 4; k++) {
+    float t = mix((float(k) - 1.5) * 0.36, tiltAt(s + (float(k) - 1.5) * 0.25 * spread), near) * wall;
+    vec3 n = normalize(N * cos(t) + Tv * sin(t));
+    float fr = 0.049 + 0.951 * pow(1.0 - max(dot(n, V), 0.0), 5.0);   // Schlick, n = 1.57
+    F += fr;
+    if (uPass > 0.5) R += fr * env(reflect(-V, n));
+  }
+  F *= 0.25; R *= 0.25;
+  float ci = max(dot(N, V), 0.02);
+  float cosT = sqrt(max(1.0 - (1.0 - ci * ci) / 2.4649, 0.05));
+  vec3 T = (1.0 - F) * (1.0 - 0.5 * uHaze) * pow(uTint, vec3(0.5 / cosT));
+  if (uPass < 0.5) { gl_FragColor = vec4(pow(T, vec3(0.4545)), 1.0); return; }
+  vec3 b = backdrop(cameraPosition, -V) * T * T;     // roughly what is already behind this surface
+  vec3 lt = R + uHaze * 0.7 * glowIrr(N);
+  vec3 gl = pow(tm(b + lt), vec3(0.4545)) - pow(tm(b), vec3(0.4545));
+  gl_FragColor = vec4(max(gl, vec3(0.0)), 1.0);
+}`;
+  // sequential blue, dark to light as the lean grows; past the limit in the critical red
+  const LEAN_FS = `
+uniform float uCap;
+varying vec3 vW; varying vec3 vN; varying float vLean;
+vec3 ramp(float t) {
+  vec3 c0 = vec3(0.094, 0.310, 0.584), c1 = vec3(0.145, 0.416, 0.749), c2 = vec3(0.224, 0.529, 0.898);
+  vec3 c3 = vec3(0.427, 0.655, 0.925), c4 = vec3(0.620, 0.773, 0.957), c5 = vec3(0.804, 0.886, 0.984);
+  t = clamp(t, 0.0, 1.0) * 5.0;
+  if (t < 1.0) return mix(c0, c1, t);
+  if (t < 2.0) return mix(c1, c2, t - 1.0);
+  if (t < 3.0) return mix(c2, c3, t - 2.0);
+  if (t < 4.0) return mix(c3, c4, t - 3.0);
+  return mix(c4, c5, t - 4.0);
+}
+void main() {
+  vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 V = normalize(cameraPosition - vW);
+  float a = abs(vLean);
+  vec3 col = a > uCap + 0.05 ? vec3(0.816, 0.231, 0.231) : ramp(a / uCap);
+  float sh = 0.52 + 0.48 * max(dot(N, normalize(V + vec3(0.0, 0.5, 0.0))), 0.0);
+  gl_FragColor = vec4(col * sh, 1.0);
+}`;
+  const BG_FS = `
+uniform mat4 uInvVP; uniform vec2 uRes;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec2 ndc = gl_FragCoord.xy / uRes * 2.0 - 1.0;
+  vec4 a = uInvVP * vec4(ndc, -1.0, 1.0); vec4 b = uInvVP * vec4(ndc, 1.0, 1.0);
+  vec3 ro = a.xyz / a.w;
+  vec3 col = backdrop(ro, normalize(b.xyz / b.w - ro));
+  col = pow(tm(col), vec3(0.4545)) + (hash(gl_FragCoord.xy) - 0.5) / 255.0;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+  function makeViewer() {
+    const canvas = $("#view"), msg = $("#gl-msg");
+    const fail = text => { msg.textContent = text; msg.hidden = false; canvas.hidden = true; return null; };
+    if (!window.THREE) return fail("The 3D view couldn't load. The checks and downloads still work.");
+    let renderer;
+    try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: "high-performance" }); }
+    catch (e) { return fail("This device can't show the 3D view. The checks and downloads still work."); }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 1);
+    const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(28, 1, 10, 40000);
+    const c3 = () => ({ value: new THREE.Color() });
+    const U = {
+      uEnvFrame: { value: new THREE.Matrix3() }, uBack: c3(), uBackTop: c3(), uFloor: c3(), uHalo: c3(), uKey: c3(), uKeyBox: { value: new THREE.Vector4() },
+      uRim: c3(), uRimAz: { value: 1.2 }, uTopL: c3(), uAmb: c3(), uExposure: { value: 1 },
+      uLayerH: { value: 2 }, uGroove: { value: 0.6 }, uFootH: { value: 20 }, uLines: { value: 1 }, uHaze: { value: 0.07 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uCap: { value: 35 },
+      uInvVP: { value: new THREE.Matrix4() }, uRes: { value: new THREE.Vector2(1, 1) }, uJarC: { value: new THREE.Vector3(0, 190, 0) },
+      uJarR: { value: 150 }, uFootR: { value: 94 }, uJarH: { value: 450 }, uShadow: { value: new THREE.Vector2(1, 0) }
+    };
+    const bg = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({ uniforms: U, vertexShader: "void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }", fragmentShader: ENV + BG_FS, depthTest: false, depthWrite: false }));
+    bg.frustumCulled = false; bg.renderOrder = -100; scene.add(bg);
+    const jar = new THREE.Group(); jar.rotation.x = -Math.PI / 2; scene.add(jar);       // the model is z-up
+    const gOut = new THREE.BufferGeometry(), gIn = new THREE.BufferGeometry();
+    const mk = (pass, side) => new THREE.ShaderMaterial({
+      uniforms: Object.assign({}, U, { uPass: { value: pass } }), vertexShader: VS, fragmentShader: ENV + PETG_FS, side,
+      transparent: true, depthTest: false, depthWrite: false, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
+      blendSrc: pass ? THREE.OneFactor : THREE.ZeroFactor, blendDst: pass ? THREE.OneFactor : THREE.SrcColorFactor, extensions: { derivatives: true }
+    });
+    const mats = { B0: mk(0, THREE.BackSide), B1: mk(1, THREE.BackSide), F0: mk(0, THREE.FrontSide), F1: mk(1, THREE.FrontSide) };
+    const petg = new THREE.Group(); jar.add(petg);
+    // far to near: back wall outside, back wall inside, front wall inside, front wall outside
+    [[gOut, "B"], [gIn, "F"], [gIn, "B"], [gOut, "F"]].forEach(([geo, s], i) => [0, 1].forEach(pass => {
+      const m = new THREE.Mesh(geo, mats[s + pass]); m.renderOrder = 1 + i * 2 + pass; m.frustumCulled = false; petg.add(m);
+    }));
+    const leanMat = new THREE.ShaderMaterial({ uniforms: U, vertexShader: VS, fragmentShader: LEAN_FS });
+    const leanG = new THREE.Group(); jar.add(leanG);
+    [gOut, gIn].forEach(geo => { const m = new THREE.Mesh(geo, leanMat); m.frustumCulled = false; leanG.add(m); });
+
+    let W = 1, Hh = 1, dims = { H: 450, R: 150 }, has = false;
+    const cam = { az: 0.35, el: 0.16, zoom: 1 };
+    function place(asp) {
+      const tv = Math.tan(camera.fov * Math.PI / 360);
+      const d = Math.max(dims.H * 0.5 * 1.32 / tv + dims.R, dims.R * 1.4 / (tv * asp) + dims.R) * cam.zoom, ty = dims.H * 0.48, ce = Math.cos(cam.el);
+      camera.position.set(d * ce * Math.sin(cam.az), ty + d * Math.sin(cam.el), d * ce * Math.cos(cam.az));
+      camera.lookAt(0, ty, 0); camera.updateMatrixWorld();
+    }
+    const m4 = new THREE.Matrix4(), v2 = new THREE.Vector2();
+    function draw() {
+      camera.aspect = W / Hh; camera.updateProjectionMatrix(); place(W / Hh);
+      U.uEnvFrame.value.setFromMatrix4(m4.makeRotationY(-cam.az));
+      const ka = LIGHTS[look.light].keyBox[0], sx = -Math.sin(ka), sz = Math.cos(ka), co = Math.cos(cam.az), si = Math.sin(cam.az);
+      U.uShadow.value.set(sx * co + sz * si, -sx * si + sz * co).normalize();
+      U.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+      renderer.getDrawingBufferSize(v2); U.uRes.value.copy(v2);
+      jar.visible = has;
+      renderer.render(scene, camera);
+    }
+    let raf = 0, lastT = 0;
+    function frame(t) {
+      raf = 0;
+      if (look.spin && !document.hidden) { const dt = lastT ? Math.min(0.05, (t - lastT) / 1000) : 0; lastT = t; cam.az += dt * 0.35; raf = requestAnimationFrame(frame); }
+      else lastT = 0;
+      draw();
+    }
+    const request = () => { if (!raf) raf = requestAnimationFrame(frame); };
+
+    const stage = $("#stage");
+    const resize = () => { const r = stage.getBoundingClientRect(); W = Math.max(1, Math.round(r.width)); Hh = Math.max(1, Math.round(r.height)); renderer.setSize(W, Hh, false); request(); };
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener("resize", resize);
+    resize();
+    canvas.addEventListener("webglcontextlost", e => { e.preventDefault(); fail("The 3D view stopped. Reload the page to bring it back."); });
+
+    // drag to turn, pinch or wheel to zoom, double-click to reset; arrow keys and +/- when focused
+    const ptrs = new Map(); let pinch0 = 0, zoom0 = 1;
+    const hideHint = () => { const h = $("#hint"); if (h) { h.dataset.used = "1"; h.classList.add("gone"); } };
+    canvas.addEventListener("pointerdown", e => {
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); hideHint();
+      if (ptrs.size === 2) { const [a, b] = Array.from(ptrs.values()); pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = cam.zoom; }
+    });
+    canvas.addEventListener("pointermove", e => {
+      const p = ptrs.get(e.pointerId); if (!p) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+      if (ptrs.size === 1) { cam.az -= dx * 0.009; cam.el = clamp(cam.el + dy * 0.007, -0.12, 1.45); request(); }
+      else if (ptrs.size === 2 && pinch0 > 0) { const [a, b] = Array.from(ptrs.values()); cam.zoom = clamp(zoom0 * pinch0 / Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), 0.3, 3); request(); }
+    });
+    const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; };
+    canvas.addEventListener("pointerup", up); canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("wheel", e => { e.preventDefault(); cam.zoom = clamp(cam.zoom * Math.exp(e.deltaY * 0.0012), 0.3, 3); request(); }, { passive: false });
+    canvas.addEventListener("dblclick", () => preset("home"));
+    canvas.addEventListener("keydown", e => {
+      const k = e.key; let used = true;
+      if (k === "ArrowLeft") cam.az += 0.15; else if (k === "ArrowRight") cam.az -= 0.15;
+      else if (k === "ArrowUp") cam.el = clamp(cam.el + 0.1, -0.12, 1.45); else if (k === "ArrowDown") cam.el = clamp(cam.el - 0.1, -0.12, 1.45);
+      else if (k === "+" || k === "=") cam.zoom = clamp(cam.zoom / 1.12, 0.3, 3); else if (k === "-") cam.zoom = clamp(cam.zoom * 1.12, 0.3, 3);
+      else used = false;
+      if (used) { e.preventDefault(); hideHint(); request(); }
+    });
+
+    function preset(n) {
+      const a = lipAz(), p = { home: [a + 0.35, 0.16, 1], lip: [a, 0.10, 0.95], front: [a + Math.PI / 2, 0.14, 1], top: [a + 0.35, 1.15, 0.95] }[n];
+      if (!p) return; [cam.az, cam.el, cam.zoom] = p; request();
+    }
+    function setMesh(m, info) {
+      [[gOut, m.outer], [gIn, m.inner]].forEach(([geo, d]) => {
+        geo.dispose();
+        geo.setAttribute("position", new THREE.BufferAttribute(d.position, 3));
+        geo.setAttribute("normal", new THREE.BufferAttribute(d.normal, 3));
+        geo.setAttribute("lean", new THREE.BufferAttribute(d.lean, 1));
+        geo.setIndex(new THREE.BufferAttribute(d.index, 1));
+      });
+      const p = info.P, M = info.M;
+      dims = { H: info.H, R: Math.max(M.widest / 2, M.reach_max || 0) };
+      U.uLayerH.value = p.layer_h; U.uGroove.value = 0.25 * p.layer_h; U.uFootH.value = info.foot_h; U.uCap.value = p.max_overhang_deg;
+      U.uJarR.value = M.widest / 2; U.uFootR.value = M.foot_d / 2; U.uJarH.value = info.H; U.uJarC.value.set(0, info.H * 0.42, 0);
+      if (!has) { has = true; preset("home"); }
+      request();
+    }
+    function setLook(lk) {
+      const s = LIGHTS[lk.light] || LIGHTS.studio, t = TINTS[lk.tint] || TINTS.clear;
+      U.uBack.value.setRGB(...s.back); U.uBackTop.value.setRGB(...s.backTop); U.uFloor.value.setRGB(...s.floor); U.uHalo.value.setRGB(...s.halo);
+      U.uKey.value.setRGB(...s.key); U.uKeyBox.value.set(...s.keyBox); U.uRim.value.setRGB(...s.rim); U.uRimAz.value = s.rimAz;
+      U.uTopL.value.setRGB(...s.topL); U.uAmb.value.setRGB(...s.amb); U.uExposure.value = s.exposure;
+      U.uTint.value.set(...t.rgb); U.uHaze.value = (1 - lk.clarity / 100) * 0.35; U.uLines.value = lk.lines ? 1 : 0;
+      petg.visible = lk.view === "petg"; leanG.visible = lk.view === "lean";
+      request();
+    }
+    function snapshot(w, h, caption, ink) {
+      const pr = renderer.getPixelRatio(), W0 = W, H0 = Hh;
+      renderer.setPixelRatio(1); renderer.setSize(w, h, false); W = w; Hh = h; draw();
+      const c2 = document.createElement("canvas"); c2.width = w; c2.height = h;
+      const cx = c2.getContext("2d"); cx.drawImage(canvas, 0, 0, w, h);
+      if (caption) { const fs = Math.round(w * 0.017); cx.font = `500 ${fs}px "Hanken Grotesk", system-ui, sans-serif`; cx.fillStyle = ink; cx.fillText(caption, Math.round(w * 0.045), Math.round(h - w * 0.045)); }
+      renderer.setPixelRatio(pr); W = W0; Hh = H0; renderer.setSize(W, Hh, false); draw();
+      return c2;
+    }
+    return { setMesh, setLook, preset, snapshot, request };
+  }
+
+  /* ======================= start ======================= */
+  function start(data) {
+    const saved = data && data.P ? data : restore();
+    if (saved) {
+      sanitizeInto(P, saved.P);
+      Object.assign(look, pick(saved.look, LOOK0)); Object.assign(out, pick(saved.out, OUT0));
+      if (typeof saved.tab === "string") tab = saved.tab;
+    }
+    buildUI();
+    viewer = makeViewer();
+    refreshAll(); applyLook(); openTab(tab); requestLive(); initDownloads();
+    try { const hot = window.claude && window.claude.hot; if (hot && hot.snapshot) hot.snapshot(() => ({ P, look, out, tab })); } catch (e) { /* not in the viewer */ }
+  }
+  try {
+    const hot = window.claude && window.claude.hot;
+    if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+  } catch (e) { start({}); }
+})();
+</script>
+</body>
+</html>

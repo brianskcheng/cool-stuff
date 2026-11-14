@@ -1,0 +1,12 @@
+name = "brianskcheng"
+main = "worker/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+account_id = "0a832dfb234c8dea958a38b954bd95de"
+
+rules = [{ type = "Text", globs = ["**/*.html"], fallthrough = false }]
+
+routes = [
+  { pattern = "brianskcheng.com", custom_domain = true },
+  { pattern = "www.brianskcheng.com", custom_domain = true }
+]
