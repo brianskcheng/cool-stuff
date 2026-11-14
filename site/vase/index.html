@@ -31,6 +31,7 @@
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--text); font: 400 15px/1.45 var(--body); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 button, input, textarea { font: inherit; color: inherit; }
+[hidden] { display: none !important; }   /* author display rules (e.g. .gl-msg grid) must not resurrect hidden overlays */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 #app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr) minmax(270px, 1fr); }
